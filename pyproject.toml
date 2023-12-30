@@ -1,0 +1,29 @@
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+known_first_party = [
+    "dataset",
+    "models",
+    "pipeline",
+    "config",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov --cov-report term --cov-report xml:coverage.xml --show-capture=all -vvv -ra"
+env_files = ["tests/.env"]
+python_files = "*_tests.py"
+testpaths = ["tests"]
+timeout = 30
+
+[tool.coverage.run]
+branch = true
+source = ["."]
+omit = [
+    # ignore tests
+    "tests/**",
+]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+sort = "miss"
