@@ -1,0 +1,1 @@
+"""Core service components including engine management and dependencies."""

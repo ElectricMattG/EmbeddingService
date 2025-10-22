@@ -1,0 +1,2 @@
+--logs--| 2025-10-22 13:34:09,583 | INFO - EmbeddingEngine - Initializing EmbeddingEngine with sentence-transformers/all-MiniLM-L6-v2 on cuda
+| 2025-10-22 13:34:11,012 | INFO - EmbeddingEngine - Model loaded. Embedding dimension: 384

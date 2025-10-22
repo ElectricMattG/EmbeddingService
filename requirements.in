@@ -14,8 +14,4 @@ fastapi
 cryptography
 aiohttp
 tokenizers
-ray
 ray[serve]
-ray[data]
-ray[client]
-ray[default]

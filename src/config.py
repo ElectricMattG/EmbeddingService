@@ -27,6 +27,34 @@ defaults = {
         "level": 10,
         "output_full_path": "./logs/logfile.log",
     },
+    "embedding": {
+        # Model configuration
+        "default_model": "all-mini",  # Default BERT model to use
+        "cache_dir": None,            # Model cache directory (None = use transformers default)
+        
+        # Performance settings
+        "batch_size": 32,             # Default batch size for processing
+        "max_length": 512,            # Maximum sequence length for tokenization
+        "normalize_embeddings": True,  # Whether to L2 normalize embeddings
+        
+        # Device settings
+        "device": 'cuda',               # 'cuda', 'cpu', or None (auto-detect)
+        "gpu_memory_fraction": 0.8,   # GPU memory usage limit
+        
+        # Processing settings
+        "show_progress": False,       # Progress logging
+        "use_segmentation": True,     # Long text segmentation
+        "segment_overlap": 50,        # Token overlap between segments
+        "fallback_model": "distilbert-base-uncased",  # Fallback model if default fails
+    },
+    "service": {
+        # Request limits (two-level keys only!)
+        "max_text_length": 8192,      # Maximum text length in characters
+        "max_batch_size": 100,        # Maximum batch size for embedding requests
+        "max_candidates": 1000,       # Maximum similarity comparison candidates
+        "max_request_size": 10485760, # Maximum request size in bytes (10MB)
+        "rate_limit_per_minute": 600, # Rate limit per IP per minute
+    },
 }
 
 
