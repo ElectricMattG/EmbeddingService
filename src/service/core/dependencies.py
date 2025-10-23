@@ -240,7 +240,7 @@ def validate_similarity_request(request: SimilarityRequest) -> SimilarityRequest
         )
     
     # Check batch size limits
-    max_batch = 100  # Configurable limit
+    max_batch = 512  # Configurable limit
     if len(request.texts1) > max_batch or len(request.texts2) > max_batch:
         raise HTTPException(
             status_code=400,

@@ -33,7 +33,7 @@ defaults = {
         "cache_dir": None,            # Model cache directory (None = use transformers default)
         
         # Performance settings
-        "batch_size": 32,             # Default batch size for processing
+        "batch_size": 1024,           # Default batch size for processing (raised from 32)
         "max_length": 512,            # Maximum sequence length for tokenization
         "normalize_embeddings": True,  # Whether to L2 normalize embeddings
         
@@ -50,10 +50,19 @@ defaults = {
     "service": {
         # Request limits (two-level keys only!)
         "max_text_length": 8192,      # Maximum text length in characters
-        "max_batch_size": 100,        # Maximum batch size for embedding requests
+        "max_batch_size": 1024,       # Maximum batch size for embedding requests (raised from 100)
         "max_candidates": 1000,       # Maximum similarity comparison candidates
         "max_request_size": 10485760, # Maximum request size in bytes (10MB)
         "rate_limit_per_minute": 600, # Rate limit per IP per minute
+
+        # Concurrency controls (read by service.core.engine_manager)
+        # Tune these to match Ray Serve replica concurrency to avoid proxy-level 500s.
+        # Note: keys must remain two-level deep due to config helper constraints.
+        "embedding_concurrency_limit": 32,
+        "similarity_concurrency_limit": 8,
+        "gpu_ops_concurrency_limit": 2,
+        "model_loading_concurrency_limit": 1,
+        "health_checks_concurrency_limit": 50,
     },
 }
 

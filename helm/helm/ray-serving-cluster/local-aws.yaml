@@ -1,0 +1,35 @@
+rayClusterConfig:
+  head:
+    volumes:      
+      - name: head-creds
+        hostPath: 
+          path: /home/ray/.aws/credentials
+          type: Directory
+    containerEnv:
+      - name: AWS_SHARED_CREDENTIALS_FILE
+        value: /home/ray/.aws/credentials
+      - name: AWS_PROFILE
+        value: prod-content-dev-renedev
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+      - name: INFERENCE_DIR
+        value: /home/ray/examples/legalbert512sift
+    volumeMounts:      
+      - mountPath: /home/ray/.aws/credentials
+        name: head-creds
+  worker:
+    volumes:      
+      - name: worker-creds
+        hostPath: 
+          path: /home/ray/.aws/credentials
+          type: Directory
+    containerEnv:
+      - name: AWS_SHARED_CREDENTIALS_FILE
+        value: /home/ray/.aws/credentials
+      - name: AWS_PROFILE
+        value: prod-content-dev-renedev
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+    volumeMounts:      
+      - mountPath: /home/ray/.aws/credentials
+        name: worker-creds

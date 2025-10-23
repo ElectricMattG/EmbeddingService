@@ -59,13 +59,14 @@ class EmbeddingEngineManager:
         self._load_time: Optional[float] = None
         self._startup_time = time.time()
         
-        # Semaphore configuration - hardcoded defaults (config system only supports 2-level keys)
+        # Semaphore configuration (config system supports only 2-level keys)
+        # Pull limits from app config with sensible defaults.
         self._semaphore_config = {
-            'gpu_operations': 2,
-            'model_loading': 1,
-            'embedding_requests': 4,
-            'similarity_requests': 3,
-            'health_checks': 10,
+            'gpu_operations': int(app_conf.get('service.gpu_ops_concurrency_limit') or 2),
+            'model_loading': int(app_conf.get('service.model_loading_concurrency_limit') or 1),
+            'embedding_requests': int(app_conf.get('service.embedding_concurrency_limit') or 32),
+            'similarity_requests': int(app_conf.get('service.similarity_concurrency_limit') or 8),
+            'health_checks': int(app_conf.get('service.health_checks_concurrency_limit') or 50),
         }
         
         # Create semaphores

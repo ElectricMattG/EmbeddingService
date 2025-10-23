@@ -26,6 +26,13 @@ class EmbedResponse(BaseModel):
         description="Time taken to process the request in seconds",
         example=0.125
     )
+    segment_embeddings: Optional[Union[List[List[float]], List[List[List[float]]]]] = Field(
+        None,
+        description=(
+            "Optional per-segment embeddings. For a single-text request: List[List[float]]. "
+            "For multiple texts: List[List[List[float]]]. Present only when requested and when segmentation is enabled."
+        )
+    )
     
     class Config:
         schema_extra = {
@@ -59,6 +66,13 @@ class EmbedWithSegmentsResponse(BaseModel):
         ..., 
         description="Time taken to process the request in seconds",
         example=0.150
+    )
+    segment_embeddings: Union[List[List[float]], List[List[List[float]]]] = Field(
+        ..., 
+        description=(
+            "Per-segment embeddings. For a single-text request: List[List[float]]. "
+            "For multiple texts: List[List[List[float]]]. Order aligns with 'segments'."
+        )
     )
     
     class Config:

@@ -1,0 +1,117 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: embedding-service
+  namespace: default
+spec:
+  serviceUnhealthySecondThreshold: 900
+  deploymentUnhealthySecondThreshold: 300
+  
+  # Ray Serve application configuration
+  serveConfigV2: |
+    applications:
+      - name: embedding-service
+        import_path: src.service.ray_deployment:deployment
+        runtime_env:
+          working_dir: "."
+          pip:
+            - ray[serve]==2.39.0
+        deployments:
+          - name: embedding-service
+            num_replicas: 2
+            ray_actor_options:
+              num_cpus: 2
+              num_gpus: 0.5
+            autoscaling_config:
+              min_replicas: 2
+              max_replicas: 16
+              target_num_ongoing_requests_per_replica: 4
+  
+  # Ray Cluster configuration
+  rayClusterConfig:
+    rayVersion: '2.39.0'
+    
+    # Head node - no GPU, used for coordination
+    headGroupSpec:
+      serviceType: ClusterIP
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+        num-cpus: '0'
+      template:
+        spec:
+          containers:
+          - name: ray-head
+            image: 192.168.1.3:5000/embedding-service:v4.0.1
+            imagePullPolicy: Always  # Pull pinned image from local registry
+            ports:
+            - containerPort: 6379
+              name: gcs
+            - containerPort: 8265
+              name: dashboard
+            - containerPort: 10001
+              name: client
+            - containerPort: 8000
+              name: serve
+            resources:
+              limits:
+                cpu: "4"
+                memory: "8Gi"
+              requests:
+                cpu: "2"
+                memory: "4Gi"
+            volumeMounts:
+            - name: huggingface-cache
+              mountPath: /root/.cache/huggingface
+            env:
+            - name: RAY_STORAGE_PATH
+              value: "/mnt/ray-storage"
+            - name: TRANSFORMERS_CACHE
+              value: "/root/.cache/huggingface"
+          volumes:
+          - name: huggingface-cache
+            persistentVolumeClaim:
+              claimName: ray-storage-pvc
+    
+    # Worker nodes - GPU enabled for embedding operations
+    workerGroupSpecs:
+    - groupName: gpu-workers
+      replicas: 2
+      minReplicas: 2
+      maxReplicas: 4
+      rayStartParams:
+        num-gpus: '1'
+      template:
+        spec:
+          containers:
+          - name: ray-worker
+            image: 192.168.1.3:5000/embedding-service:v4.0.1
+            imagePullPolicy: Always  # Pull pinned image from local registry
+            lifecycle:
+              preStop:
+                exec:
+                  command: ["/bin/sh", "-c", "ray stop"]
+            resources:
+              limits:
+                cpu: "6"
+                memory: "16Gi"
+                nvidia.com/gpu: "1"
+              requests:
+                cpu: "3"
+                memory: "8Gi"
+                nvidia.com/gpu: "1"
+            volumeMounts:
+            - name: huggingface-cache
+              mountPath: /root/.cache/huggingface
+            env:
+            - name: RAY_STORAGE_PATH
+              value: "/mnt/ray-storage"
+            - name: TRANSFORMERS_CACHE
+              value: "/root/.cache/huggingface"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+          volumes:
+          - name: huggingface-cache
+            persistentVolumeClaim:
+              claimName: ray-storage-pvc

@@ -1,0 +1,88 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ include "ray-serving-cluster.fullname" . }}
+  namespace: {{ .Values.namespace }}
+spec:
+  hosts:
+    - "{{ .Values.nameOverride }}-dashboard.{{ .Values.istio.dnsPrefix }}"
+    - "{{ .Values.nameOverride }}-modelservice.{{ .Values.istio.dnsPrefix }}"
+    - "{{ .Values.nameOverride }}-prometheus.{{ .Values.istio.dnsPrefix }}"
+    - "{{ .Values.nameOverride }}-grafana.{{ .Values.istio.dnsPrefix }}"
+    - "{{ .Values.nameOverride }}-notebook.{{ .Values.istio.dnsPrefix }}"
+  gateways:
+  - "{{ .Values.istio.gatewayNamespace}}/{{ .Values.istio.gateway }}"
+  http:
+  - name: {{ include "ray-serving-cluster.fullname" . }}-dashboard
+    match:
+    - headers:
+        Host:
+          exact: "{{ .Values.nameOverride }}-dashboard.{{ .Values.istio.dnsPrefix }}"
+    route:
+    - destination:
+        host: {{ include "ray-serving-cluster.fullname" . }}-head-svc.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: 8265
+      weight: 100
+  - name: {{ include "ray-serving-cluster.fullname" . }}-prometheus
+    match:
+    - headers:
+        Host:
+          exact: "{{ .Values.nameOverride }}-prometheus.{{ .Values.istio.dnsPrefix }}"
+    route:
+    - destination:
+        host: {{ include "ray-serving-cluster.fullname" . }}-head-svc.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: 8080
+      weight: 100
+  - name: {{ include "ray-serving-cluster.fullname" . }}-grafana
+    match:
+    - headers:
+        Host:
+          exact: "{{ .Values.nameOverride }}-grafana.{{ .Values.istio.dnsPrefix }}"
+    route:
+    - destination:
+        host: {{ include "ray-serving-cluster.fullname" . }}-head-svc.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: 3000
+      weight: 100
+  - name: {{ include "ray-serving-cluster.fullname" . }}-modelservice
+    match:
+    - headers:
+        Host:
+          exact: "{{ .Values.nameOverride }}-modelservice.{{ .Values.istio.dnsPrefix }}"
+    route:
+    - destination:
+        host: {{ include "ray-serving-cluster.fullname" . }}-serve-svc.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: 8000
+      weight: 100
+{{- if .Values.rayClusterConfig.head.sidecarContainers }}
+  - name: {{ include "ray-serving-cluster.fullname" . }}-notebook
+    match:
+    - headers:
+        Host:
+          exact: "{{ .Values.nameOverride }}-notebook.{{ .Values.istio.dnsPrefix }}"
+    route:
+    - destination:
+        host: {{ include "ray-serving-cluster.fullname" . }}-head-svc.{{ .Values.namespace }}.svc.cluster.local
+        port:
+          number: 8888
+      weight: 100
+{{- end }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ include "ray-serving-cluster.fullname" . }}-head-svc
+  namespace: {{ .Values.namespace }}
+spec:
+  host: {{ include "ray-serving-cluster.fullname" . }}-head-svc.{{ .Values.namespace }}.svc.cluster.local
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: {{ include "ray-serving-cluster.fullname" . }}-serve-svc
+  namespace: {{ .Values.namespace }}
+spec:
+  host: {{ include "ray-serving-cluster.fullname" . }}-serve-svc.{{ .Values.namespace }}.svc.cluster.local

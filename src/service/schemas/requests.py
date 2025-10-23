@@ -34,6 +34,11 @@ class EmbedRequest(BaseModel):
         description="Whether to use text segmentation for long texts",
         example=True
     )
+    include_segment_embeddings: bool = Field(
+        False,
+        description="If true and segmentation is enabled, include per-segment embeddings in the response.",
+        example=False
+    )
     
     @validator('texts')
     def validate_texts(cls, v):

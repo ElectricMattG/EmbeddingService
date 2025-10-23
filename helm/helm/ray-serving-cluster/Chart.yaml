@@ -1,0 +1,6 @@
+apiVersion: v1
+appVersion: "1.0"
+description: A Helm chart for a Kuberay Serving cluster
+name: ray-serving-cluster
+version: 0.2.12
+home: https://tfs-glo-lexisadvance.visualstudio.com/DefaultCollection/Apps.Socrates/_git/kuberay-serving

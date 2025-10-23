@@ -1,0 +1,217 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  {{ if .Values.namespace }}
+  namespace: {{ .Values.namespace }}
+  {{ end }}
+  labels: 
+{{ include "ray-serving-cluster.labels" . | indent 4 }}
+  name: {{ include "ray-serving-cluster.fullname" . }}
+  {{ if .Values.annotations }}
+  annotations: {{ toYaml .Values.annotations | nindent 4 }}
+  {{ end }}
+spec:
+  {{ if .Values.serviceUnhealthySecondThreshold }}
+  serviceUnhealthySecondThreshold: {{ .Values.serviceUnhealthySecondThreshold }}
+  {{ end }}
+  {{ if .Values.deploymentUnhealthySecondThreshold }}
+  deploymentUnhealthySecondThreshold: {{ .Values.deploymentUnhealthySecondThreshold }}
+  {{ end }}
+  {{ if .Values.serveConfigV2 }}
+  serveConfigV2: |
+{{ .Values.serveConfigV2 | nindent 4 }}
+  {{ end }}
+  rayClusterConfig:
+    {{ if .Values.rayClusterConfig.rayVersion }}
+    rayVersion: {{ .Values.rayClusterConfig.rayVersion }}
+    {{ end }}
+    {{- if .Values.rayClusterConfig.enableInTreeAutoscaling }}
+    enableInTreeAutoscaling: {{ .Values.rayClusterConfig.enableInTreeAutoscaling }}
+    {{- end }}
+    {{- if .Values.rayClusterConfig.autoscalerOptions }}
+    autoscalerOptions: {{- toYaml .Values.rayClusterConfig.autoscalerOptions | nindent 6 }}
+    {{- end }}
+    
+    headGroupSpec:
+      serviceType: {{ .Values.service.type }}
+      rayStartParams:
+      {{- if and (not .Values.rayClusterConfig.head.rayStartParams) (not .Values.rayClusterConfig.head.initArgs) }}
+        {}
+      {{- else }}
+        {{- range $key, $val := .Values.rayClusterConfig.head.rayStartParams }}
+          {{ $key }}: {{ $val | quote }}
+        {{- end }}
+        {{- range $key, $val := .Values.rayClusterConfig.head.initArgs }}
+          {{ $key }}: {{ $val | quote }}
+        {{- end }}
+      {{- end }}
+      template:
+        spec:
+          imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 12 }}
+          {{- if .Values.serviceAccount.name }}
+          serviceAccountName: {{ .Values.serviceAccount.name }}
+          {{- end }}
+          {{- if .Values.rayClusterConfig.head.initContainers }}
+          initContainers: {{- toYaml .Values.rayClusterConfig.head.initContainers | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: ray-head
+              {{- if or .Values.rayClusterConfig.head.volumeMounts .Values.sharedLogging.enabled }}
+              volumeMounts:
+                {{- if .Values.rayClusterConfig.head.volumeMounts }}
+                {{- toYaml .Values.rayClusterConfig.head.volumeMounts | nindent 16 }}
+                {{- end }}
+                {{- if .Values.sharedLogging.enabled }}
+                - mountPath: /tmp/ray
+                  name: shared-logging
+                {{- end }}
+              {{- end }}
+              {{- if .Values.rayClusterConfig.head.image }}
+              image: {{ .Values.rayClusterConfig.head.image.repository }}:{{ .Values.rayClusterConfig.head.image.tag }}
+              imagePullPolicy: {{ .Values.rayClusterConfig.head.image.pullPolicy }}
+              {{- else }}
+              image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              {{- end }}
+              resources: {{- toYaml .Values.rayClusterConfig.head.resources | nindent 16 }}
+              securityContext:
+              {{- toYaml .Values.rayClusterConfig.head.securityContext | nindent 16 }}
+              env:
+              {{- with .Values.rayClusterConfig.head.containerEnv }}
+              {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.rayClusterConfig.head.envFrom }}
+              envFrom: {{- toYaml . | nindent 16}}
+              {{- end }}
+              {{- if .Values.rayClusterConfig.head.ports }}
+              ports: {{- toYaml .Values.rayClusterConfig.head.ports | nindent 16}}
+              {{- end }}
+              {{- if .Values.rayClusterConfig.head.lifecycle }}
+              lifecycle:
+              {{- toYaml .Values.rayClusterConfig.head.lifecycle | nindent 16 }}
+              {{- end }}
+              {{- if .Values.rayClusterConfig.head.command }}
+              command: {{- toYaml .Values.rayClusterConfig.head.command | nindent 16}}
+              {{- end }}
+              {{- if .Values.rayClusterConfig.head.args }}
+              args: {{- toYaml .Values.rayClusterConfig.head.args | nindent 16}}
+              {{- end }}
+            {{- if .Values.rayClusterConfig.head.sidecarContainers }}
+            {{- toYaml .Values.rayClusterConfig.head.sidecarContainers | nindent 12 }}
+            {{- end }}
+          volumes:
+            {{- if .Values.rayClusterConfig.head.volumes }}
+            {{- toYaml .Values.rayClusterConfig.head.volumes | nindent 12 }}
+            {{- end }}
+            {{- if .Values.sharedLogging.enabled }}
+            - name: shared-logging
+              persistentVolumeClaim:
+                claimName: {{ include "ray-serving-cluster.fullname" . }}-shared-logging
+            {{- end }}
+          affinity: {{- toYaml .Values.rayClusterConfig.head.affinity | nindent 12 }}
+          tolerations: {{- toYaml .Values.rayClusterConfig.head.tolerations | nindent 12 }}
+          nodeSelector: {{- toYaml .Values.rayClusterConfig.head.nodeSelector | nindent 12 }}
+        metadata:
+          annotations: {{- toYaml .Values.rayClusterConfig.head.annotations | nindent 12 }}
+          {{- if .Values.rayClusterConfig.head.labels }}
+          labels: {{- toYaml .Values.rayClusterConfig.head.labels | nindent 12 }}
+          {{- include "ray-serving-cluster.labels" . | nindent 12 }}
+          {{- else }}
+          labels: {{- include "ray-serving-cluster.labels" . | nindent 12 }}
+          {{- end }}
+
+    workerGroupSpecs:
+      {{- if ne (.Values.rayClusterConfig.worker.disabled | default false) true }}
+      - rayStartParams:
+        {{- if and (not .Values.rayClusterConfig.worker.rayStartParams) (not .Values.rayClusterConfig.worker.initArgs) }}
+          {}
+        {{- else }}
+          {{- range $key, $val := .Values.rayClusterConfig.worker.rayStartParams }}
+            {{ $key }}: {{ $val | quote }}
+          {{- end }}
+          {{- /*
+          initArgs is a deprecated alias for rayStartParams.
+          */}}
+          {{- range $key, $val := .Values.rayClusterConfig.worker.initArgs }}
+            {{ $key }}: {{ $val | quote }}
+          {{- end }}
+        {{- end }}
+        replicas: {{ .Values.rayClusterConfig.worker.replicas }}
+        minReplicas: {{ .Values.rayClusterConfig.worker.minReplicas | default 0 }}
+        maxReplicas: {{ .Values.rayClusterConfig.worker.maxReplicas | default 2147483647 }}
+        groupName: {{ .Values.rayClusterConfig.worker.groupName }}
+        template:
+          spec:
+            imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 14 }}
+            {{- if .Values.serviceAccount.name }}
+            serviceAccountName: {{ .Values.serviceAccount.name }}
+            {{- end }}
+            {{- if .Values.rayClusterConfig.worker.initContainers }}
+            initContainers: {{- toYaml .Values.rayClusterConfig.worker.initContainers | nindent 14 }}
+            {{- end }}
+            containers:
+              - name: ray-worker
+                {{ if or .Values.rayClusterConfig.worker.volumeMounts .Values.sharedLogging.enabled }}
+                volumeMounts:
+                  {{- if .Values.rayClusterConfig.worker.volumeMounts }}
+                  {{- toYaml .Values.rayClusterConfig.worker.volumeMounts | nindent 18 }}
+                  {{- end }}
+                  {{- if .Values.sharedLogging.enabled }}
+                  - mountPath: /tmp/ray
+                    name: shared-logging
+                  {{- end }}
+                {{- end }}  
+                {{- if .Values.rayClusterConfig.worker.image }}
+                image: {{ .Values.rayClusterConfig.worker.image.repository }}:{{ .Values.rayClusterConfig.worker.image.tag }}
+                imagePullPolicy: {{ .Values.rayClusterConfig.worker.image.pullPolicy }}
+                {{- else }}
+                image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+                imagePullPolicy: {{ .Values.image.pullPolicy }}
+                {{- end }}
+                resources: {{- toYaml .Values.rayClusterConfig.worker.resources | nindent 18 }}
+                securityContext:
+                {{- toYaml .Values.rayClusterConfig.worker.securityContext | nindent 18 }}
+                env:
+                {{- with .Values.rayClusterConfig.worker.containerEnv }}
+                {{- toYaml . | nindent 18 }}
+                {{- end }}
+                envFrom:
+                {{- with .Values.rayClusterConfig.worker.envFrom }}
+                {{- toYaml . | nindent 18 }}
+                {{- end }}
+                ports:
+                {{- toYaml .Values.rayClusterConfig.worker.ports | nindent 18 }}
+                {{- if .Values.rayClusterConfig.worker.lifecycle }}
+                lifecycle:
+                {{- toYaml .Values.rayClusterConfig.worker.lifecycle | nindent 18 }}
+                {{- end }}
+                {{- if .Values.rayClusterConfig.worker.command }}
+                command: {{- toYaml .Values.rayClusterConfig.worker.command | nindent 18 }}
+                {{- end }}
+                {{- if .Values.rayClusterConfig.worker.args }}
+                args: {{- toYaml .Values.rayClusterConfig.worker.args | nindent 18 }}
+                {{- end }}
+              {{- if .Values.rayClusterConfig.worker.sidecarContainers }}
+              {{- toYaml .Values.rayClusterConfig.worker.sidecarContainers | nindent 14 }}
+              {{- end }}           
+            volumes:
+              {{- if .Values.rayClusterConfig.worker.volumes }}
+              {{- toYaml .Values.rayClusterConfig.worker.volumes | nindent 14 }}
+              {{- end }}
+            {{- if .Values.sharedLogging.enabled }}            
+            - name: shared-logging
+              persistentVolumeClaim:
+                claimName: {{ include "ray-serving-cluster.fullname" . }}-shared-logging
+            {{- end }}
+            affinity: {{- toYaml .Values.rayClusterConfig.worker.affinity | nindent 14 }}
+            tolerations: {{- toYaml .Values.rayClusterConfig.worker.tolerations | nindent 14 }}
+            nodeSelector: {{- toYaml .Values.rayClusterConfig.worker.nodeSelector | nindent 14 }}
+          metadata:
+            annotations: {{- toYaml .Values.rayClusterConfig.worker.annotations | nindent 14 }}
+            {{- if .Values.rayClusterConfig.worker.labels }}
+            labels: {{- toYaml .Values.rayClusterConfig.worker.labels | nindent 14 }}
+    {{ include "ray-serving-cluster.labels" . | indent 14 }}
+            {{ else }}
+            labels: {{ include "ray-serving-cluster.labels" $ | nindent 14 }}
+            {{- end }}
+      {{- end }}

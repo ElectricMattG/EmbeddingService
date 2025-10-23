@@ -1,0 +1,98 @@
+# Helm values for EmbeddingService Ray Cluster with Serve
+# Deploy with: helm install embedding-service kuberay/ray-cluster -f helm/values-embedding-service.yaml
+
+# Use our custom built image
+image:
+  repository: 192.168.1.3:5000/embedding-service
+  tag: v4.0.1
+  pullPolicy: Always  # Pull from local registry
+
+nameOverride: "embedding-service"
+fullnameOverride: "embedding-service"
+
+# Common environment variables for all pods
+common:
+  containerEnv:
+    - name: TRANSFORMERS_CACHE
+      value: "/root/.cache/huggingface"
+    - name: RAY_STORAGE_PATH
+      value: "/mnt/ray-storage"
+
+# Head node configuration (no GPU, coordination only)
+head:
+  # Enable autoscaling for the cluster
+  enableInTreeAutoscaling: true
+  autoscalerOptions:
+    upscalingMode: Default
+    idleTimeoutSeconds: 60
+  
+  # Ray start parameters
+  rayStartParams:
+    dashboard-host: '0.0.0.0'
+    num-cpus: '0'  # Don't schedule workloads on head
+  
+  # Resource allocation for head node
+  resources:
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+  
+  # Volume mounts for model cache
+  volumes:
+    - name: log-volume
+      emptyDir: {}
+    - name: huggingface-cache
+      persistentVolumeClaim:
+        claimName: ray-storage-pvc
+  
+  volumeMounts:
+    - mountPath: /tmp/ray
+      name: log-volume
+    - mountPath: /root/.cache/huggingface
+      name: huggingface-cache
+
+# GPU worker configuration
+worker:
+  groupName: gpu-workers
+  replicas: 8
+  minReplicas: 8
+  maxReplicas: 12
+  
+  # Ray start parameters for GPU workers
+  rayStartParams:
+    num-gpus: '2'
+  
+  # Container environment for GPU access
+  containerEnv:
+    - name: NVIDIA_VISIBLE_DEVICES
+      value: "all"
+    - name: CUDA_VISIBLE_DEVICES
+      value: "0"
+  
+  # Resource allocation with GPU
+  resources:
+    limits:
+      cpu: "6"
+      memory: "16Gi"
+      nvidia.com/gpu: "2"
+    requests:
+      cpu: "3"
+      memory: "8Gi"
+      nvidia.com/gpu: "2"
+  
+  # Volume mounts for model cache
+  volumes:
+    - name: log-volume
+      emptyDir: {}
+    - name: huggingface-cache
+      persistentVolumeClaim:
+        claimName: ray-storage-pvc
+  
+  volumeMounts:
+    - mountPath: /tmp/ray
+      name: log-volume
+    - mountPath: /root/.cache/huggingface
+      name: huggingface-cache

@@ -1,0 +1,16 @@
+head:
+  sidecarContainers:
+    - name: jupyterlab
+      image: jupyterlab:local
+      ports:
+        - containerPort: 8888
+      resources:
+        limits:
+          cpu: "200m"
+          memory: "1Gi"
+        requests:
+          cpu: "200m"
+          memory: "1Gi"
+      volumeMounts:
+        - mountPath: /opt/workspace/examples
+          name: head-workdir

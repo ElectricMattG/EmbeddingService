@@ -98,23 +98,48 @@ async def generate_embeddings(request: EmbedRequest) -> EmbedResponse:
             validate_batch_size(request.batch_size, "batch_size")
         
         # Generate embeddings using the manager
-        embeddings = await embedding_manager.embed(
-            texts=request.texts,
-            batch_size=request.batch_size,
-            show_progress=request.show_progress,
-            use_segmentation=request.use_segmentation
-        )
+        segment_embeddings_payload = None
+        if request.include_segment_embeddings and request.use_segmentation:
+            # Use segmentation path to obtain per-segment embeddings along with aggregated ones
+            result = await embedding_manager.embed_with_segments(
+                texts=request.texts,
+                show_progress=request.show_progress
+            )
+
+            # Unpack based on single vs multiple texts
+            if isinstance(request.texts, str):
+                embeddings_np, segments, seg_embs_np = result
+                embeddings_np = embeddings_np.reshape(1, -1)
+                # Single-text: List[List[float]]
+                segment_embeddings_payload = numpy_to_list(seg_embs_np)
+            else:
+                embeddings_np, segments, per_text_seg_embs_np = result
+                # Multi-text: List[List[List[float]]]
+                segment_embeddings_payload = [numpy_to_list(x) for x in per_text_seg_embs_np]
+
+            embeddings = embeddings_np
+        else:
+            embeddings = await embedding_manager.embed(
+                texts=request.texts,
+                batch_size=request.batch_size,
+                show_progress=request.show_progress,
+                use_segmentation=request.use_segmentation
+            )
         
         # Validate and convert numpy array to list for JSON serialization
         validate_embedding_shape(embeddings)
         embeddings_list = numpy_to_list(embeddings)
         processing_time = time.time() - start_time
         
-        return EmbedResponse(
+        resp = EmbedResponse(
             embeddings=embeddings_list,
             shape=list(embeddings.shape),
             processing_time=processing_time
         )
+        # Attach segment embeddings if requested and available
+        if segment_embeddings_payload is not None:
+            resp.segment_embeddings = segment_embeddings_payload
+        return resp
         
     except (ModelNotLoadedException, ValidationException, EmbeddingProcessingException, 
             GPUMemoryException, ConcurrencyLimitException):
@@ -189,23 +214,28 @@ async def generate_embeddings_with_segments(request: EmbedRequest) -> EmbedWithS
         # Unpack result based on whether it's single text or multiple texts
         if isinstance(request.texts, str):
             # Single text case
-            embeddings, segments = result
-            embeddings = embeddings.reshape(1, -1)  # Ensure 2D shape
-            segments = [segments]  # Wrap in list for consistency
+            embeddings_np, segments, seg_embs_np = result
+            embeddings_np = embeddings_np.reshape(1, -1)  # Ensure 2D shape
+            # Convert per-segment embeddings: List[List[float]]
+            segment_embeddings_payload = numpy_to_list(seg_embs_np)
+            segments_wrapped = [segments]  # Wrap in list for consistency
         else:
             # Multiple texts case
-            embeddings, segments = result
+            embeddings_np, segments_wrapped, per_text_seg_embs_np = result
+            # Convert nested per-text segment embeddings: List[List[List[float]]]
+            segment_embeddings_payload = [numpy_to_list(x) for x in per_text_seg_embs_np]
         
         # Validate and convert numpy array to list for JSON serialization
-        validate_embedding_shape(embeddings)
-        embeddings_list = numpy_to_list(embeddings)
+        validate_embedding_shape(embeddings_np)
+        embeddings_list = numpy_to_list(embeddings_np)
         processing_time = time.time() - start_time
         
         return EmbedWithSegmentsResponse(
             embeddings=embeddings_list,
-            segments=segments,
-            shape=list(embeddings.shape),
-            processing_time=processing_time
+            segments=segments_wrapped,
+            shape=list(embeddings_np.shape),
+            processing_time=processing_time,
+            segment_embeddings=segment_embeddings_payload
         )
         
     except (ModelNotLoadedException, ValidationException, EmbeddingProcessingException, 

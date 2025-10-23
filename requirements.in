@@ -14,4 +14,4 @@ fastapi
 cryptography
 aiohttp
 tokenizers
-ray[serve]
+ray[serve]==2.39.0

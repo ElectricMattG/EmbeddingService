@@ -19,6 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from starlette.middleware.gzip import GZipMiddleware
 
 from .core.dependencies import initialize_semaphores
 from .middleware.logging import get_performance_metrics
@@ -137,11 +138,17 @@ def create_app(
     app.add_middleware(RequestValidationMiddleware)
     logger.info("Request validation middleware enabled")
     
-    # 3. Logging middleware
+    # 3. Enable gzip compression for large JSON responses to reduce network load
+    #    This can help lower transient upstream errors under burst traffic and
+    #    speeds up large payloads like segment embeddings.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    logger.info("GZip middleware enabled (minimum_size=1024 bytes)")
+
+    # 4. Logging middleware
     app.add_middleware(LoggingMiddleware, log_requests=True, log_responses=True)
     logger.info("Logging middleware enabled")
     
-    # 4. Error handling middleware
+    # 5. Error handling middleware
     app.add_middleware(ErrorHandlerMiddleware)
     logger.info("Error handling middleware enabled")
     

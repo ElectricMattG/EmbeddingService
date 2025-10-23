@@ -1,0 +1,16 @@
+{{- if .Values.sharedLogging.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ray-serving-cluster.fullname" . }}-shared-logging
+  labels:
+    {{- include "ray-serving-cluster.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.sharedLogging.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.sharedLogging.size | quote }}
+{{- end }}

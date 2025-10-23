@@ -16,6 +16,7 @@ from transformers import AutoTokenizer, AutoModel
 from torch.nn.functional import normalize
 import time
 from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from src.config_handler import Base
 
@@ -102,6 +103,8 @@ class EmbeddingEngine(Base):
         
         # Initialize thread pool executor for async operations
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="EmbeddingEngine")
+        # Guard non-thread-safe tokenizer operations
+        self._tokenizer_lock = threading.Lock()
             
         # Load model and tokenizer
         self._load_model()
@@ -188,8 +191,9 @@ class EmbeddingEngine(Base):
         if overlap is None:
             overlap = self.segment_overlap
             
-        # Quick tokenization to get token count
-        tokens = self.tokenizer.encode(text, add_special_tokens=False)
+        # Quick tokenization to get token count (tokenizers are not thread-safe)
+        with self._tokenizer_lock:
+            tokens = self.tokenizer.encode(text, add_special_tokens=False)
         
         # If text fits within max_length, return as is
         if len(tokens) <= self.max_length - 2:  # Account for special tokens
@@ -207,8 +211,9 @@ class EmbeddingEngine(Base):
             # Extract token chunk
             chunk_tokens = tokens[start_idx:end_idx]
             
-            # Decode back to text
-            chunk_text = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True)
+            # Decode back to text (guard tokenizer access)
+            with self._tokenizer_lock:
+                chunk_text = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True)
             segments.append(chunk_text)
             
             # Move start index for next chunk (with overlap)
@@ -242,14 +247,15 @@ class EmbeddingEngine(Base):
         Returns:
             Numpy array of embeddings
         """
-        # Tokenize
-        encoded = self.tokenizer(
-            texts,
-            padding=True,
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors='pt'
-        )
+        # Tokenize (guard tokenizer access; fast tokenizers aren't thread-safe)
+        with self._tokenizer_lock:
+            encoded = self.tokenizer(
+                texts,
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+                return_tensors='pt'
+            )
         
         # Move to device
         input_ids = encoded['input_ids'].to(self.device)
@@ -525,7 +531,7 @@ class EmbeddingEngine(Base):
         self, 
         texts: Union[str, List[str]], 
         show_progress: bool = False
-    ) -> Union[Tuple[np.ndarray, List[str]], Tuple[np.ndarray, List[List[str]]]]:
+    ) -> Union[Tuple[np.ndarray, List[str], List[np.ndarray]], Tuple[np.ndarray, List[List[str]], List[List[np.ndarray]]]]:
         """
         Synchronous implementation of embed_with_segments method.
         """
@@ -560,19 +566,23 @@ class EmbeddingEngine(Base):
 
         # Reconstruct per-text embeddings and segment lists
         idx = 0
+        per_text_segment_embeddings = []
         for segments in segments_per_text:
             seg_count = len(segments)
             if seg_count == 0:
                 embeddings_list.append(np.zeros((self.embedding_dim,), dtype=float))
                 all_segments_lists.append([])
+                per_text_segment_embeddings.append(np.zeros((0, self.embedding_dim), dtype=float))
             elif seg_count == 1:
                 embeddings_list.append(all_segment_embeddings[idx])
                 all_segments_lists.append(segments)
+                per_text_segment_embeddings.append(all_segment_embeddings[idx:idx+1])
                 idx += 1
             else:
                 seg_embs = all_segment_embeddings[idx:idx + seg_count]
                 embeddings_list.append(np.max(seg_embs, axis=0))
                 all_segments_lists.append(segments)
+                per_text_segment_embeddings.append(seg_embs)
                 idx += seg_count
             
             # progress already handled during re-aggregation using 'j'
@@ -587,8 +597,8 @@ class EmbeddingEngine(Base):
             self._logger.info(f"Completed {n_texts} embeddings ({total_segments} total segments) in {elapsed:.2f}s ({rate:.1f} texts/sec)")
         
         if single_text:
-            return embeddings[0], all_segments_lists[0]
-        return embeddings, all_segments_lists
+            return embeddings[0], all_segments_lists[0], per_text_segment_embeddings[0]
+        return embeddings, all_segments_lists, per_text_segment_embeddings
     
     async def similarity(self, texts1: Union[str, List[str]], texts2: Union[str, List[str]]) -> np.ndarray:
         """

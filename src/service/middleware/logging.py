@@ -14,6 +14,8 @@ import json
 import logging
 import time
 from typing import Dict, Any, Optional
+import os
+import uuid
 from functools import wraps
 
 from fastapi import Request, Response
@@ -207,6 +209,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             processing_time: Time taken to process request
             context: Request context
         """
+        # Attach lightweight tracing headers
+        try:
+            # X-Request-Id: reuse incoming header if present, else generate one
+            req_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+            response.headers.setdefault("X-Request-Id", req_id)
+            # X-Replica: help correlate which pod/replica served the request
+            replica = os.getenv("HOSTNAME") or "unknown"
+            response.headers.setdefault("X-Replica", replica)
+        except Exception:
+            # Never fail response due to header decoration
+            pass
+
         logger.info(
             f"Response {response.status_code} for {context['method']} {context['path']} "
             f"in {processing_time:.3f}s",
