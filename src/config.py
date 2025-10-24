@@ -58,10 +58,11 @@ defaults = {
         # Concurrency controls (read by service.core.engine_manager)
         # Tune these to match Ray Serve replica concurrency to avoid proxy-level 500s.
         # Note: keys must remain two-level deep due to config helper constraints.
-        "embedding_concurrency_limit": 32,
-        "similarity_concurrency_limit": 8,
-        "gpu_ops_concurrency_limit": 2,
-        "model_loading_concurrency_limit": 1,
+        # Optimized for 2-worker deployment with RTX A4500 GPUs
+        "embedding_concurrency_limit": 64,   # Doubled from 32 for 2-worker setup
+        "similarity_concurrency_limit": 16,  # Doubled from 8 for 2-worker setup
+        "gpu_ops_concurrency_limit": 4,      # Doubled from 2 for 2-worker setup
+        "model_loading_concurrency_limit": 2, # Doubled from 1 for 2-worker setup
         "health_checks_concurrency_limit": 50,
     },
 }

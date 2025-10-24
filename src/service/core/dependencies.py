@@ -39,10 +39,10 @@ security = HTTPBearer(auto_error=False)
 
 # Semaphore configurations for different operation types
 SEMAPHORE_LIMITS = {
-    "gpu_operations": 4,     # GPU-intensive embedding operations
+    "gpu_operations": 8,     # GPU-intensive embedding operations (increased for 2-worker setup)
     "model_loading": 1,      # Only one model operation at a time
-    "embedding_requests": 8,  # General embedding requests
-    "similarity_requests": 6, # Similarity computations
+    "embedding_requests": 16, # General embedding requests (doubled for 2-worker setup)
+    "similarity_requests": 12, # Similarity computations (doubled for 2-worker setup)
     "health_checks": 20      # Lightweight health operations
 }
 

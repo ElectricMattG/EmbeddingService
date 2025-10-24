@@ -18,13 +18,13 @@ from src.service.main import app
         "num_cpus": 2,
         "num_gpus": 0.2,  # Allow 2-5 replicas per GPU depending on model size
     },
-    # Increase per-replica concurrency to tolerate larger bursts without Serve overload rejections.
-    # Default is 5; previously 64; now 100 for additional headroom. Tune based on latency SLOs.
-    max_ongoing_requests=100,
+    # Increased per-replica concurrency to coordinate with optimized semaphore limits.
+    # Supports higher concurrency for 2-worker deployment with increased app-level limits.
+    max_ongoing_requests=200,  # Increased from 100 to coordinate with doubled semaphores
     autoscaling_config={
         "min_replicas": 2,
         "max_replicas": 16,
-        "target_num_ongoing_requests_per_replica": 4,
+        "target_num_ongoing_requests_per_replica": 8,  # Increased from 4 for higher baseline
     },
 )
 @serve.ingress(app)
