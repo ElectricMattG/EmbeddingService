@@ -1,0 +1,124 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: embedding-service
+  namespace: default
+spec:
+  serviceUnhealthySecondThreshold: 900
+  deploymentUnhealthySecondThreshold: 300
+  
+  # Ray Serve application configuration
+  serveConfigV2: |
+    http_options:
+      host: "0.0.0.0"
+      port: 8000
+      location: EveryNode
+    applications:
+      - name: embedding-service
+        import_path: src.service.ray_deployment:deployment
+        route_prefix: "/"
+  
+  # Ray Cluster configuration
+  rayClusterConfig:
+    rayVersion: '2.39.0'
+    
+    # Head node - no GPU, used for coordination
+    headGroupSpec:
+      serviceType: ClusterIP
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+        num-cpus: '0'
+      template:
+        spec:
+          terminationGracePeriodSeconds: 120
+          imagePullSecrets:
+          - name: acr-secret
+          containers:
+          - name: ray-head
+            image: ragserviceukacr12562.azurecr.io/embedding-service:v4.0.2
+            imagePullPolicy: Always
+            ports:
+            - containerPort: 6379
+              name: gcs
+              protocol: TCP
+            - containerPort: 8265
+              name: dashboard
+              protocol: TCP
+            - containerPort: 10001
+              name: client
+              protocol: TCP
+            - containerPort: 8000
+              name: serve
+              protocol: TCP
+            resources:
+              limits:
+                cpu: "1"
+                memory: "2Gi"
+              requests:
+                cpu: "500m"
+                memory: "1Gi"
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                    - /bin/bash
+                    - -lc
+                    - |
+                      echo "[preStop] Gracefully stopping Ray head...";
+                      ray stop || true;
+                      pkill -TERM -f "python.*ray" || true;
+                      pkill -TERM -f "uvicorn|fastapi|gunicorn" || true;
+                      sleep 5
+            env:
+            - name: TRANSFORMERS_CACHE
+              value: "/tmp/huggingface"
+    
+    # Worker nodes - CPU only for now
+    workerGroupSpecs:
+    - groupName: worker-cpu
+      replicas: 1
+      minReplicas: 1
+      maxReplicas: 2
+      rayStartParams:
+        num-cpus: '2'
+      template:
+        spec:
+          terminationGracePeriodSeconds: 120
+          imagePullSecrets:
+          - name: acr-secret
+          containers:
+          - name: ray-worker
+            image: ragserviceukacr12562.azurecr.io/embedding-service:v4.0.2
+            imagePullPolicy: Always
+            readinessProbe:
+              exec:
+                command:
+                  - bash
+                  - -c
+                  - wget --tries 1 -T 2 -q -O- http://localhost:52365/api/local_raylet_healthz | grep success
+              initialDelaySeconds: 10
+              periodSeconds: 5
+              timeoutSeconds: 2
+              failureThreshold: 3
+            resources:
+              limits:
+                cpu: "2"
+                memory: "4Gi"
+              requests:
+                cpu: "1"
+                memory: "2Gi"
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                    - /bin/bash
+                    - -lc
+                    - |
+                      echo "[preStop] Gracefully stopping Ray worker...";
+                      ray stop || true;
+                      pkill -TERM -f "python.*ray" || true;
+                      pkill -TERM -f "uvicorn|fastapi|gunicorn" || true;
+                      sleep 5
+            env:
+            - name: TRANSFORMERS_CACHE
+              value: "/tmp/huggingface"

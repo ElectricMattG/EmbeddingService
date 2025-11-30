@@ -1,0 +1,132 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: embedding-service
+spec:
+  serviceUnhealthySecondThreshold: 900
+  deploymentUnhealthySecondThreshold: 300
+  serveService:
+    metadata:
+      name: embedding-service-serve-svc
+    spec:
+      type: LoadBalancer
+  serveConfigV2: |
+    http_options:
+      host: "0.0.0.0"
+      port: 8000
+      location: EveryNode
+    applications:
+      - name: embedding-service
+        import_path: src.service.ray_deployment:deployment
+        route_prefix: "/"
+  rayClusterConfig:
+    rayVersion: '2.39.0'
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+        num-cpus: '0'
+      serviceType: ClusterIP
+      template:
+        spec:
+          imagePullSecrets:
+            - name: acr-secret
+          volumes:
+            - name: secrets-store
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: "azure-keyvault-api-key"
+          containers:
+            - name: ray-head
+              image: ragserviceneacr6881.azurecr.io/embedding-service:v4.0.6
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  cpu: "500m"
+                  memory: "2Gi"
+                requests:
+                  cpu: "250m"
+                  memory: "1Gi"
+              ports:
+                - containerPort: 6379
+                  name: gcs
+                  protocol: TCP
+                - containerPort: 8265
+                  name: dashboard
+                  protocol: TCP
+                - containerPort: 10001
+                  name: client
+                  protocol: TCP
+                - containerPort: 8000
+                  name: serve
+                  protocol: TCP
+              env:
+                - name: RAY_STORAGE_PATH
+                  value: "/tmp/ray-storage"
+                - name: TRANSFORMERS_CACHE
+                  value: "/root/.cache/huggingface"
+                - name: API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: embedding-api-key
+                      key: api-key
+              volumeMounts:
+                - name: secrets-store
+                  mountPath: "/mnt/secrets-store"
+                  readOnly: true
+              lifecycle:
+                preStop:
+                  exec:
+                    command: ["/bin/bash","-lc","echo \"[preStop] Gracefully stopping Ray head...\";\nray stop || true;\npkill -TERM -f \"python.*ray\" || true;\npkill -TERM -f \"uvicorn|fastapi|gunicorn\" || true;\nsleep 5\n"]
+          terminationGracePeriodSeconds: 120
+    workerGroupSpecs:
+      - groupName: worker-gpu
+        replicas: 1
+        minReplicas: 1
+        maxReplicas: 1
+        rayStartParams:
+          num-gpus: "1"
+        template:
+          spec:
+            imagePullSecrets:
+              - name: acr-secret
+            tolerations:
+              - key: nvidia.com/gpu
+                operator: Equal
+                value: present
+                effect: NoSchedule
+            containers:
+              - name: ray-worker
+                image: ragserviceneacr6881.azurecr.io/embedding-service:v4.0.6
+                imagePullPolicy: Always
+                resources:
+                  limits:
+                    cpu: "3"
+                    memory: "8Gi"
+                    nvidia.com/gpu: "1"
+                  requests:
+                    cpu: "2"
+                    memory: "4Gi"
+                    nvidia.com/gpu: "1"
+                env:
+                  - name: RAY_STORAGE_PATH
+                    value: "/tmp/ray-storage"
+                  - name: TRANSFORMERS_CACHE
+                    value: "/root/.cache/huggingface"
+                  - name: NVIDIA_VISIBLE_DEVICES
+                    value: "all"
+                  - name: CUDA_VISIBLE_DEVICES
+                    value: "0"
+                readinessProbe:
+                  exec:
+                    command: ["bash", "-c", "wget --tries 1 -T 2 -q -O- http://localhost:52365/api/local_raylet_healthz | grep success"]
+                  initialDelaySeconds: 10
+                  periodSeconds: 5
+                  timeoutSeconds: 2
+                  failureThreshold: 3
+                lifecycle:
+                  preStop:
+                    exec:
+                      command: ["/bin/bash","-lc","echo \"[preStop] Gracefully stopping Ray worker...\";\nray stop || true;\npkill -TERM -f \"python.*ray\" || true;\npkill -TERM -f \"uvicorn|fastapi|gunicorn\" || true;\nsleep 5\n"]
+            terminationGracePeriodSeconds: 120

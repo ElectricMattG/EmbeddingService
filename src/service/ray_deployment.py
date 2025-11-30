@@ -15,7 +15,7 @@ from src.service.main import app
 @serve.deployment(
     name="embedding-service",
     ray_actor_options={
-        "num_cpus": 2,
+        "num_cpus": 1,
         "num_gpus": 0.2,  # Allow 2-5 replicas per GPU depending on model size
     },
     # Increased per-replica concurrency to coordinate with optimized semaphore limits.

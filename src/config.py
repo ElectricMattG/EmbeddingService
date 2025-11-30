@@ -29,7 +29,7 @@ defaults = {
     },
     "embedding": {
         # Model configuration
-        "default_model": "all-mini",  # Default BERT model to use
+        "default_model": "legal-bert",  # Default BERT model to use (changed from all-mini)
         "cache_dir": None,            # Model cache directory (None = use transformers default)
         
         # Performance settings

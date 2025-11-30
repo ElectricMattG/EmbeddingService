@@ -38,7 +38,8 @@ class EmbeddingEngine(Base):
         'bert-tiny': 'google/bert_uncased_L-2_H-128_A-2',
         'bert-mini': 'google/bert_uncased_L-4_H-256_A-4',
         'bert-small': 'google/bert_uncased_L-4_H-512_A-8',
-        'all-mini': 'sentence-transformers/all-MiniLM-L6-v2'
+        'all-mini': 'sentence-transformers/all-MiniLM-L6-v2',
+        'legal-bert': 'nlpaueb/legal-bert-base-uncased'
     }
     
     def __init__(
