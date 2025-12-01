@@ -9,7 +9,7 @@ spec:
     metadata:
       name: embedding-service-serve-svc
     spec:
-      type: LoadBalancer
+      type: ClusterIP
   serveConfigV2: |
     http_options:
       host: "0.0.0.0"
@@ -39,7 +39,7 @@ spec:
                   secretProviderClass: "azure-keyvault-api-key"
           containers:
             - name: ray-head
-              image: ragserviceneacr6881.azurecr.io/embedding-service:v4.0.6
+              image: ragserviceneacr6881.azurecr.io/embedding-service:v4.0.9
               imagePullPolicy: Always
               resources:
                 limits:
@@ -98,7 +98,7 @@ spec:
                 effect: NoSchedule
             containers:
               - name: ray-worker
-                image: ragserviceneacr6881.azurecr.io/embedding-service:v4.0.6
+                image: ragserviceneacr6881.azurecr.io/embedding-service:v4.0.9
                 imagePullPolicy: Always
                 resources:
                   limits:

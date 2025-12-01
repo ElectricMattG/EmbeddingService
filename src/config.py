@@ -29,7 +29,7 @@ defaults = {
     },
     "embedding": {
         # Model configuration
-        "default_model": "legal-bert",  # Default BERT model to use (changed from all-mini)
+        "default_model": "all-mini",  # Default model - MiniLM for efficiency (maps to sentence-transformers/all-MiniLM-L6-v2)
         "cache_dir": None,            # Model cache directory (None = use transformers default)
         
         # Performance settings
