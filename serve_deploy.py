@@ -27,4 +27,3 @@ print("✅ EmbeddingService deployed to Ray Serve successfully!")
 print(f"📊 Cluster resources: {ray.cluster_resources()}")
 print(f"🚀 Service available at: http://<cluster-ip>:8000")
 print(f"🔍 Serve status: {serve.status()}")
-

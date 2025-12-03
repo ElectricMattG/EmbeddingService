@@ -588,7 +588,7 @@ kubectl describe pod <pod-name> | grep -A 10 Events
    # Verify containerd config
    sudo grep -A 10 "192.168.1.3:5000" /etc/containerd/config.toml
    # Should show registry mirror config
-   
+
    # Restart if missing
    sudo systemctl restart containerd
    ```
@@ -632,7 +632,7 @@ df -h /mnt/workspace_2
      echo "=== $repo ==="
      curl -s http://192.168.1.3:5000/v2/$repo/tags/list | jq .
    done
-   
+
    # Delete unused tags
    ```
 
@@ -640,10 +640,10 @@ df -h /mnt/workspace_2
    ```bash
    # Stop registry
    docker stop local-registry
-   
+
    # Move data
    sudo mv /mnt/workspace_2/docker-registry /mnt/larger_volume/docker-registry
-   
+
    # Update and restart registry
    docker rm local-registry
    docker run -d -p 5000:5000 --restart=always --name local-registry \
@@ -667,7 +667,7 @@ df -h /mnt/workspace_2
    # Use multi-stage builds
    FROM python:3.12-slim as builder
    RUN pip install --no-cache-dir -r requirements.txt
-   
+
    FROM python:3.12-slim
    COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
    ```
@@ -691,7 +691,7 @@ df -h /mnt/workspace_2
    # Generate self-signed cert
    openssl req -newkey rsa:4096 -nodes -sha256 \
      -keyout registry.key -x509 -days 365 -out registry.crt
-   
+
    # Run registry with TLS
    docker run -d -p 5000:5000 --restart=always --name local-registry \
      -v /mnt/workspace_2/docker-registry:/var/lib/registry \
@@ -705,7 +705,7 @@ df -h /mnt/workspace_2
    ```bash
    # Create password file
    docker run --entrypoint htpasswd httpd:2 -Bbn user password > htpasswd
-   
+
    # Run registry with auth
    docker run -d -p 5000:5000 --restart=always --name local-registry \
      -v /mnt/workspace_2/docker-registry:/var/lib/registry \
@@ -714,7 +714,7 @@ df -h /mnt/workspace_2
      -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
      -e REGISTRY_AUTH_HTPASSWD_REALM="Registry Realm" \
      registry:2
-   
+
    # Login before push
    docker login 192.168.1.3:5000
    ```

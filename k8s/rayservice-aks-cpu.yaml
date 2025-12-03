@@ -6,7 +6,7 @@ metadata:
 spec:
   serviceUnhealthySecondThreshold: 900
   deploymentUnhealthySecondThreshold: 300
-  
+
   # Ray Serve application configuration
   serveConfigV2: |
     http_options:
@@ -17,11 +17,11 @@ spec:
       - name: embedding-service
         import_path: src.service.ray_deployment:deployment
         route_prefix: "/"
-  
+
   # Ray Cluster configuration
   rayClusterConfig:
     rayVersion: '2.39.0'
-    
+
     # Head node - no GPU, used for coordination
     headGroupSpec:
       serviceType: ClusterIP
@@ -72,7 +72,7 @@ spec:
             env:
             - name: TRANSFORMERS_CACHE
               value: "/tmp/huggingface"
-    
+
     # Worker nodes - CPU only for now
     workerGroupSpecs:
     - groupName: worker-cpu

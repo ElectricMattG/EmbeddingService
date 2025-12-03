@@ -47,7 +47,7 @@ kubectl get pods -l ray.io/cluster=ray-cluster-simple
 
 ### Expected Results
 - **Head pod**: 2/2 Ready (ray-head + autoscaler containers)
-- **Worker pods**: 1/1 Ready (ray-worker containers)  
+- **Worker pods**: 1/1 Ready (ray-worker containers)
 - **No CrashLoopBackOff** if rayStartParams properly configured
 
 ### Troubleshooting

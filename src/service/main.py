@@ -13,21 +13,22 @@ This module provides:
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Any, Dict
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 from starlette.middleware.gzip import GZipMiddleware
 
 from .core.dependencies import initialize_semaphores
-from .middleware.logging import get_performance_metrics
 from .core.engine_manager import EmbeddingEngineManager
-from .middleware.error_handler import ErrorHandlerMiddleware, add_exception_handlers
-from .middleware.logging import LoggingMiddleware, configure_logging
+from .middleware.error_handler import (ErrorHandlerMiddleware,
+                                       add_exception_handlers)
+from .middleware.logging import (LoggingMiddleware, configure_logging,
+                                 get_performance_metrics)
 from .middleware.validation import RequestValidationMiddleware
-from .routes import models, embeddings, similarity, health
+from .routes import embeddings, health, models, similarity
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -37,23 +38,23 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Async context manager for application lifespan events.
-    
+
     Handles:
     - Startup: Initialize semaphores, configure logging
     - Shutdown: Cleanup resources, model unloading
     """
     # Startup
     logger.info("Starting EmbeddingService...")
-    
+
     try:
         # Initialize semaphores for concurrency control
         initialize_semaphores()
         logger.info("Semaphores initialized successfully")
-        
+
         # Initialize embedding manager (singleton)
         manager = EmbeddingEngineManager.get_instance()
         logger.info("EmbeddingEngine manager initialized")
-        
+
         # Optional: Pre-load a default model
         try:
             from src.config import app_conf
@@ -64,24 +65,24 @@ async def lifespan(app: FastAPI):
                 logger.info("Default model loaded successfully")
         except Exception as e:
             logger.warning(f"Could not pre-load default model: {e}")
-        
+
         logger.info("EmbeddingService startup completed successfully")
-        
+
         yield  # Application runs here
-        
+
     finally:
         # Shutdown
         logger.info("Shutting down EmbeddingService...")
-        
+
         try:
             # Cleanup embedding manager
             manager = EmbeddingEngineManager.get_instance()
             await manager.cleanup()
             logger.info("EmbeddingEngine manager cleaned up")
-            
+
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
-        
+
         logger.info("EmbeddingService shutdown completed")
 
 
@@ -95,7 +96,7 @@ def create_app(
 ) -> FastAPI:
     """
     Create and configure FastAPI application.
-    
+
     Args:
         title: API title for documentation
         description: API description for documentation
@@ -103,13 +104,13 @@ def create_app(
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         enable_cors: Whether to enable CORS middleware
         enable_metrics: Whether to enable performance metrics
-        
+
     Returns:
         Configured FastAPI application
     """
     # Configure logging first
     configure_logging(log_level)
-    
+
     # Create FastAPI app with lifespan management
     app = FastAPI(
         title=title,
@@ -120,9 +121,9 @@ def create_app(
         redoc_url="/redoc",
         openapi_url="/openapi.json"
     )
-    
+
     # Add middleware (order matters - last added is executed first)
-    
+
     # 1. CORS middleware (if enabled)
     if enable_cors:
         app.add_middleware(
@@ -133,11 +134,11 @@ def create_app(
             allow_headers=["*"],
         )
         logger.info("CORS middleware enabled")
-    
+
     # 2. Request validation middleware
     app.add_middleware(RequestValidationMiddleware)
     logger.info("Request validation middleware enabled")
-    
+
     # 3. Enable gzip compression for large JSON responses to reduce network load
     #    This can help lower transient upstream errors under burst traffic and
     #    speeds up large payloads like segment embeddings.
@@ -147,50 +148,50 @@ def create_app(
     # 4. Logging middleware
     app.add_middleware(LoggingMiddleware, log_requests=True, log_responses=True)
     logger.info("Logging middleware enabled")
-    
+
     # 5. Error handling middleware
     app.add_middleware(ErrorHandlerMiddleware)
     logger.info("Error handling middleware enabled")
-    
+
     # Add exception handlers
     add_exception_handlers(app)
     logger.info("Exception handlers registered")
-    
+
     # Register route modules
     app.include_router(
         models.router,
         prefix="/models",
         tags=["Model Management"],
     )
-    
+
     app.include_router(
         embeddings.router,
         prefix="/embeddings",
         tags=["Embedding Operations"],
     )
-    
+
     app.include_router(
         similarity.router,
         prefix="/similarity",
         tags=["Similarity Operations"],
     )
-    
+
     app.include_router(
         health.router,
         prefix="/health",
         tags=["Health & Status"],
     )
-    
+
     logger.info("All route modules registered")
-    
+
     # Add metrics endpoint if enabled
     if enable_metrics:
-        
+
         @app.get("/metrics", tags=["Monitoring"])
         async def get_metrics():
             """
             Get service performance metrics.
-            
+
             Returns detailed metrics including:
             - Request counts and error rates
             - Average response times
@@ -198,15 +199,15 @@ def create_app(
             - Semaphore usage statistics
             """
             return get_performance_metrics()
-        
+
         logger.info("Metrics endpoint enabled at /metrics")
-    
+
     # Add root endpoint
     @app.get("/", tags=["Root"])
     async def root():
         """
         Root endpoint with service information.
-        
+
         Returns basic service information and available endpoints.
         """
         return {
@@ -229,19 +230,19 @@ def create_app(
                 "Performance monitoring"
             ]
         }
-    
+
     # Custom OpenAPI schema
     def custom_openapi():
         if app.openapi_schema:
             return app.openapi_schema
-        
+
         openapi_schema = get_openapi(
             title=title,
             version=version,
             description=description,
             routes=app.routes,
         )
-        
+
         # Add custom information
         openapi_schema["info"]["x-service-features"] = [
             "Async embedding operations with GPU support",
@@ -250,17 +251,17 @@ def create_app(
             "Real-time health monitoring",
             "Structured error handling"
         ]
-        
+
         openapi_schema["info"]["contact"] = {
             "name": "EmbeddingService API Support",
             "url": "https://github.com/your-org/embedding-service",
         }
-        
+
         app.openapi_schema = openapi_schema
         return app.openapi_schema
-    
+
     app.openapi = custom_openapi
-    
+
     logger.info(f"FastAPI application created successfully: {title} v{version}")
     return app
 
@@ -272,7 +273,7 @@ app = create_app()
 # Development server configuration
 if __name__ == "__main__":
     import uvicorn
-    
+
     # Development server settings
     uvicorn.run(
         "src.service.main:app",

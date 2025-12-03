@@ -1,0 +1,149 @@
+# ArgoCD Official Installation with DevOps Node Pool Affinity
+# Download official manifest and add node selectors/tolerations
+
+# First, install ArgoCD using official manifest:
+# kubectl create namespace argocd
+# kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Then apply this patch to move workloads to devops node pool:
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-applicationset-controller
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-notifications-controller
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: argocd-application-controller
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-dex-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-redis
+  namespace: argocd
+spec:
+  template:
+    spec:
+      nodeSelector:
+        workload: devops
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: devops
+          effect: NoSchedule
+---
+# Ingress for ArgoCD
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-passthrough: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - argocd.rapporteur.ai
+      secretName: argocd-tls
+  rules:
+    - host: argocd.rapporteur.ai
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 443

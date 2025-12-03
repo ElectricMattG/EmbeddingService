@@ -1,0 +1,49 @@
+# Sample ArgoCD Application for EmbeddingService
+# This demonstrates how to configure ArgoCD to deploy from a Git repository
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: embedding-service
+  namespace: argocd
+spec:
+  project: default
+
+  # Source repository configuration
+  source:
+    # Replace with your actual Git repository URL
+    repoURL: https://github.com/ElectricMattG/EmbeddingService.git
+    targetRevision: mvp_dec_2025  # Branch, tag, or commit SHA
+    path: k8s  # Path to Kubernetes manifests in the repo
+
+    # Optional: Helm chart configuration (if using Helm)
+    # helm:
+    #   valueFiles:
+    #     - values.yaml
+
+  # Destination cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  # Sync policy
+  syncPolicy:
+    automated:
+      prune: true       # Delete resources that are no longer in Git
+      selfHeal: true    # Automatically sync when cluster state drifts
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences for certain fields (optional)
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas  # Don't auto-sync replica count (allow HPA to manage)

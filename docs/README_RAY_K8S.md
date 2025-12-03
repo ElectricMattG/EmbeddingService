@@ -55,11 +55,11 @@ Ray Serve solves these problems by:
 
 ### Key Features
 
-✅ **Autoscaling**: 2-16 replicas based on load (see `EmbeddingServiceDeployment` autoscaling_config)  
-✅ **GPU Acceleration**: 0.5 GPU per replica via `ray_actor_options` (2 replicas per physical GPU)  
-✅ **High Availability**: Distributed across multiple worker nodes with health checks  
-✅ **Zero Downtime**: Rolling updates preserve existing FastAPI endpoints and middleware  
-✅ **Production Ready**: Prometheus metrics via `/metrics` endpoint, Ray Dashboard monitoring  
+✅ **Autoscaling**: 2-16 replicas based on load (see `EmbeddingServiceDeployment` autoscaling_config)
+✅ **GPU Acceleration**: 0.5 GPU per replica via `ray_actor_options` (2 replicas per physical GPU)
+✅ **High Availability**: Distributed across multiple worker nodes with health checks
+✅ **Zero Downtime**: Rolling updates preserve existing FastAPI endpoints and middleware
+✅ **Production Ready**: Prometheus metrics via `/metrics` endpoint, Ray Dashboard monitoring
 
 ### Current Status
 
@@ -143,7 +143,7 @@ Kubernetes provides the orchestration foundation for our Ray cluster. The KubeRa
 
 **Key Components**:
 - **KubeRay Operator**: Custom resource controller that translates `RayCluster` specs into Kubernetes primitives
-- **Services**: 
+- **Services**:
   - `ray-cluster-simple-head-svc` (ClusterIP): Internal cluster communication on ports 6379 (GCS), 8265 (Dashboard), 8000 (HTTP)
   - Port-forward or NodePort: External access to Dashboard and API
 - **Persistent Storage**: `ray-storage-pvc` (500Gi) mounted at `/mnt/ray-storage` on all pods
@@ -287,13 +287,13 @@ The heart of the service - handles model loading, tokenization, and GPU inferenc
 ```python
 class EmbeddingEngine(Base):
     """GPU-accelerated text embedding engine with batching support."""
-    
+
     SMALL_MODELS = {
         'all-mini': 'sentence-transformers/all-MiniLM-L6-v2',  # 384-dim
         'distilbert': 'distilbert-base-uncased',                # 768-dim
         'bert-tiny': 'google/bert_uncased_L-2_H-128_A-2',      # 128-dim
     }
-    
+
     def __init__(self, model_name="all-mini", device="cuda", max_length=512):
         # Auto-detects GPU via torch.cuda.is_available()
         # Loads model from HuggingFace (cached to /mnt/ray-storage)
@@ -310,7 +310,7 @@ async def encode(texts: List[str]) -> np.ndarray:
     3. Batch processing: Process 32 texts at once on GPU
     4. Mean pooling: Average transformer layer outputs
     5. L2 normalization: Unit vectors for cosine similarity
-    
+
     Returns: (num_texts, embedding_dim) numpy array
     """
 ```
@@ -325,7 +325,7 @@ Singleton manager providing thread-safe model lifecycle and concurrency control.
 ```python
 class EmbeddingEngineManager:
     _instance = None  # One instance per replica process
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -368,9 +368,9 @@ async def lifespan(app: FastAPI):
     initialize_semaphores()  # Create asyncio.Semaphore objects
     manager = EmbeddingEngineManager.get_instance()
     await manager.load_model("all-mini")  # Pre-load default model
-    
+
     yield  # Replica serves requests
-    
+
     # Shutdown
     await manager.cleanup()  # Free GPU memory
 ```
@@ -394,7 +394,7 @@ async def generate_embeddings(request: EmbeddingRequest):
     async with manager.acquire_semaphore('embedding_requests'):  # Max 4
         async with manager.acquire_semaphore('gpu_operations'):  # Max 2 on GPU
             embeddings = await manager.generate_embeddings(texts)
-    
+
     return {
         "embeddings": embeddings.tolist(),  # 384-dim vectors
         "model": "all-MiniLM-L6-v2",
@@ -494,7 +494,7 @@ sequenceDiagram
     Client->>K8s: POST /embeddings<br/>{texts: [...]}
     K8s->>Head: Forward to ClusterIP
     Head->>Proxy: Route to Serve Proxy
-    
+
     alt Replica Available
         Proxy->>Replica: Assign request
         Replica->>Model: Generate embeddings<br/>(GPU accelerated)
@@ -508,11 +508,11 @@ sequenceDiagram
         Model-->>Replica: 384-dim vectors
         Replica-->>Proxy: Response
     end
-    
+
     Proxy-->>Head: Response
     Head-->>K8s: Response
     K8s-->>Client: 200 OK<br/>{embeddings: [...]}
-    
+
     Note over Proxy: If requests/replica > 4:<br/>Scale up new replica
 ```
 
@@ -528,7 +528,7 @@ sequenceDiagram
 
     Load->>Autoscaler: Requests/replica > 4
     Autoscaler->>Controller: Check resource availability
-    
+
     alt Resources Available
         Controller->>K8s: Request new Ray actor
         K8s->>Replica: Create pod (if needed)
@@ -560,36 +560,36 @@ graph TB
 
     subgraph "Kubernetes Cluster"
         KubeRay[KubeRay Operator<br/>kuberay-system]
-        
+
         subgraph "RayCluster: ray-cluster-simple"
             HeadSvc[Service: ray-cluster-simple-head-svc<br/>ClusterIP]
-            
+
             subgraph "Head Node Pod"
                 Dashboard[Ray Dashboard<br/>:8265]
                 GCS[GCS Server<br/>:6379]
                 HeadProxy[Serve HTTP Proxy<br/>:8000]
             end
-            
+
             subgraph "Worker 1 Pod"
                 GPU1[NVIDIA A4500<br/>21GB VRAM]
                 Worker1Proxy[Serve HTTP Proxy<br/>:8000]
             end
-            
+
             subgraph "Worker 2 Pod"
                 GPU2[NVIDIA A4500<br/>21GB VRAM]
                 Worker2Proxy[Serve HTTP Proxy<br/>:8000]
             end
         end
-        
+
         subgraph "Ray Serve Application"
             ServeController[Serve Controller]
-            
+
             subgraph "Deployment: embedding-service"
                 Replica1[Replica 1<br/>FastAPI + Model<br/>GPU 0.5, CPU 2]
                 Replica2[Replica 2<br/>FastAPI + Model<br/>GPU 0.5, CPU 2]
             end
         end
-        
+
         PVC[PersistentVolumeClaim<br/>ray-storage-pvc<br/>500Gi]
     end
 
@@ -602,24 +602,24 @@ graph TB
     PF --> HeadSvc
     HeadSvc --> HeadProxy
     HeadSvc --> Dashboard
-    
+
     HeadProxy --> ServeController
     ServeController --> Replica1
     ServeController --> Replica2
-    
+
     Replica1 -.->|Runs on| Worker1Proxy
     Replica2 -.->|Runs on| Worker2Proxy
-    
+
     Replica1 -->|Uses| GPU1
     Replica2 -->|Uses| GPU2
-    
+
     KubeRay -->|Manages| HeadSvc
     KubeRay -->|Pulls images| Registry
-    
+
     HeadSvc --> PVC
     Worker1Proxy --> PVC
     Worker2Proxy --> PVC
-    
+
     PVC -.->|Mounted at| Models
 
     style Client fill:#e1f5ff
@@ -649,13 +649,13 @@ graph LR
 
     subgraph "Kubernetes Node: server (192.168.1.3)"
         Containerd[Containerd Runtime<br/>+insecure registry config]
-        
+
         subgraph "Pods"
             HeadPod[ray-cluster-simple-head<br/>Image: embedding-service:ray-latest]
             Worker1Pod[ray-cluster-simple-worker-1<br/>Image: embedding-service:ray-latest<br/>GPU: nvidia.com/gpu=1]
             Worker2Pod[ray-cluster-simple-worker-2<br/>Image: embedding-service:ray-latest<br/>GPU: nvidia.com/gpu=1]
         end
-        
+
         NVCT[NVIDIA Container Toolkit]
     end
 
@@ -671,10 +671,10 @@ graph LR
     Containerd --> HeadPod
     Containerd --> Worker1Pod
     Containerd --> Worker2Pod
-    
+
     NVCT -.->|Provides GPU| Worker1Pod
     NVCT -.->|Provides GPU| Worker2Pod
-    
+
     RemoteClient -->|http://192.168.1.3:8000| HeadPod
     RemoteClient -->|http://192.168.1.3:8265| HeadPod
 
@@ -694,19 +694,19 @@ stateDiagram-v2
     Starting --> LoadingModel: Container Started
     LoadingModel --> Initializing: Model Downloaded
     Initializing --> Running: Health Check Passed
-    
+
     Running --> Running: Process Requests
     Running --> Scaling: Load Increase
     Scaling --> Running: More Replicas Added
-    
+
     Running --> Draining: Scale Down Signal
     Draining --> Stopping: Active Requests Complete
     Stopping --> [*]: Graceful Shutdown
-    
+
     Running --> Failed: Health Check Failed
     Failed --> Starting: Restart Attempt
     Failed --> [*]: Max Retries Exceeded
-    
+
     note right of Running
         Target: 4 requests/replica
         Min: 2 replicas
@@ -725,7 +725,7 @@ stateDiagram-v2
   - VRAM: 21GB+ per GPU
   - CUDA Capability: 7.0+
 - **Memory**: 32GB+ RAM
-- **Storage**: 
+- **Storage**:
   - Root: 50GB+ free (after cleanup)
   - Additional: 2TB+ for Docker registry
 
@@ -1070,7 +1070,7 @@ metadata:
   namespace: default
 spec:
   rayVersion: '2.39.0'
-  
+
   # Head node configuration
   headGroupSpec:
     serviceType: ClusterIP
@@ -1106,7 +1106,7 @@ spec:
         - name: ray-storage
           persistentVolumeClaim:
             claimName: ray-storage-pvc
-  
+
   # GPU worker nodes
   workerGroupSpecs:
   - groupName: worker-gpu
@@ -1273,9 +1273,9 @@ This decorator is the magic that makes zero-code migration possible. It:
        # Startup: Each replica loads its own model
        manager = EmbeddingEngineManager.get_instance()
        await manager.load_model("all-mini")
-       
+
        yield  # Replica serves requests
-       
+
        # Shutdown: Each replica cleans up
        await manager.cleanup()
    ```
@@ -2107,7 +2107,7 @@ kubectl exec $HEAD_POD -- ls -la /mnt/ray-storage
            severity: warning
          annotations:
            summary: "High error rate in Ray Serve"
-       
+
        - alert: RayServeReplicaDown
          expr: serve_deployment_replica_healthy < 2
          for: 5m
@@ -2199,14 +2199,14 @@ kubectl exec $HEAD_POD -- ls -la /mnt/ray-storage
 - ✅ Verified health checks and embedding generation
 - ✅ Confirmed 2 replicas RUNNING and HEALTHY
 
-**Cluster**: ray-cluster-simple  
-**Replicas**: 2/2 RUNNING  
-**Resources**: 16 CPU, 2 GPU, 32GB Memory  
-**Status**: ✅ OPERATIONAL  
+**Cluster**: ray-cluster-simple
+**Replicas**: 2/2 RUNNING
+**Resources**: 16 CPU, 2 GPU, 32GB Memory
+**Status**: ✅ OPERATIONAL
 
 ---
 
-**Author**: EmbeddingService Team  
-**Last Updated**: 2025-10-22  
-**Version**: 1.0.0  
-**License**: MIT  
+**Author**: EmbeddingService Team
+**Last Updated**: 2025-10-22
+**Version**: 1.0.0
+**License**: MIT

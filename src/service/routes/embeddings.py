@@ -6,25 +6,27 @@ segmentation, and different processing modes.
 """
 
 import time
+from typing import List, Tuple, Union
+
 import numpy as np
-from typing import List, Union, Tuple
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from src.service.core.engine_manager import embedding_manager
+from src.service.core.exceptions import (ConcurrencyLimitException,
+                                         EmbeddingProcessingException,
+                                         GPUMemoryException,
+                                         InvalidModelException,
+                                         ModelNotLoadedException,
+                                         ValidationException)
 from src.service.schemas.requests import EmbedRequest, QuickEmbedRequest
-from src.service.schemas.responses import EmbedResponse, EmbedWithSegmentsResponse
-from src.service.core.exceptions import (
-    ModelNotLoadedException,
-    InvalidModelException,
-    EmbeddingProcessingException,
-    GPUMemoryException,
-    ConcurrencyLimitException,
-    ValidationException
-)
+from src.service.schemas.responses import (EmbedResponse,
+                                           EmbedWithSegmentsResponse)
+from src.service.utils.serialization import (numpy_to_list,
+                                             validate_embedding_shape)
+from src.service.utils.validation import (validate_batch_size,
+                                          validate_text_input)
 from src.utils.convenience import quick_embed, quick_embed_with_segments
-from src.service.utils.serialization import numpy_to_list, validate_embedding_shape
-from src.service.utils.validation import validate_text_input, validate_batch_size
 
 # Create router
 router = APIRouter(tags=["Embedding Generation"])
@@ -69,19 +71,19 @@ router = APIRouter(tags=["Embedding Generation"])
 async def generate_embeddings(request: EmbedRequest) -> EmbedResponse:
     """
     Generate embeddings for input texts with automatic batching and segmentation.
-    
+
     This endpoint uses the currently loaded model to generate embeddings with support for:
     - Single text strings or lists of texts
     - Configurable batch sizes for processing efficiency
     - Automatic text segmentation for long documents
     - Progress tracking for large batches
-    
+
     Args:
         request: Embedding request with texts and optional parameters
-    
+
     Returns:
         EmbedResponse: Generated embeddings with shape and processing time
-    
+
     Raises:
         ModelNotLoadedException: If no model is currently loaded
         ValidationException: If input validation fails
@@ -90,13 +92,13 @@ async def generate_embeddings(request: EmbedRequest) -> EmbedResponse:
         ConcurrencyLimitException: If service is at capacity
     """
     start_time = time.time()
-    
+
     try:
         # Validate inputs
         validate_text_input(request.texts, "texts")
         if request.batch_size is not None:
             validate_batch_size(request.batch_size, "batch_size")
-        
+
         # Generate embeddings using the manager
         segment_embeddings_payload = None
         if request.include_segment_embeddings and request.use_segmentation:
@@ -125,12 +127,12 @@ async def generate_embeddings(request: EmbedRequest) -> EmbedResponse:
                 show_progress=request.show_progress,
                 use_segmentation=request.use_segmentation
             )
-        
+
         # Validate and convert numpy array to list for JSON serialization
         validate_embedding_shape(embeddings)
         embeddings_list = numpy_to_list(embeddings)
         processing_time = time.time() - start_time
-        
+
         resp = EmbedResponse(
             embeddings=embeddings_list,
             shape=list(embeddings.shape),
@@ -140,8 +142,8 @@ async def generate_embeddings(request: EmbedRequest) -> EmbedResponse:
         if segment_embeddings_payload is not None:
             resp.segment_embeddings = segment_embeddings_payload
         return resp
-        
-    except (ModelNotLoadedException, ValidationException, EmbeddingProcessingException, 
+
+    except (ModelNotLoadedException, ValidationException, EmbeddingProcessingException,
             GPUMemoryException, ConcurrencyLimitException):
         raise
     except ValueError as e:
@@ -183,18 +185,18 @@ async def generate_embeddings(request: EmbedRequest) -> EmbedResponse:
 async def generate_embeddings_with_segments(request: EmbedRequest) -> EmbedWithSegmentsResponse:
     """
     Generate embeddings and return information about text segmentation.
-    
+
     This endpoint is useful for understanding how long texts are processed:
     - Shows the actual text segments created for each input
     - Helps with debugging embedding quality for long documents
     - Provides insight into the segmentation strategy
-    
+
     Args:
         request: Embedding request with texts and optional parameters
-    
+
     Returns:
         EmbedWithSegmentsResponse: Embeddings, segments, shape, and processing time
-    
+
     Raises:
         ModelNotLoadedException: If no model is currently loaded
         ValidationException: If input validation fails
@@ -203,14 +205,14 @@ async def generate_embeddings_with_segments(request: EmbedRequest) -> EmbedWithS
         ConcurrencyLimitException: If service is at capacity
     """
     start_time = time.time()
-    
+
     try:
         # Generate embeddings with segments using the manager
         result = await embedding_manager.embed_with_segments(
             texts=request.texts,
             show_progress=request.show_progress
         )
-        
+
         # Unpack result based on whether it's single text or multiple texts
         if isinstance(request.texts, str):
             # Single text case
@@ -224,12 +226,12 @@ async def generate_embeddings_with_segments(request: EmbedRequest) -> EmbedWithS
             embeddings_np, segments_wrapped, per_text_seg_embs_np = result
             # Convert nested per-text segment embeddings: List[List[List[float]]]
             segment_embeddings_payload = [numpy_to_list(x) for x in per_text_seg_embs_np]
-        
+
         # Validate and convert numpy array to list for JSON serialization
         validate_embedding_shape(embeddings_np)
         embeddings_list = numpy_to_list(embeddings_np)
         processing_time = time.time() - start_time
-        
+
         return EmbedWithSegmentsResponse(
             embeddings=embeddings_list,
             segments=segments_wrapped,
@@ -237,8 +239,8 @@ async def generate_embeddings_with_segments(request: EmbedRequest) -> EmbedWithS
             processing_time=processing_time,
             segment_embeddings=segment_embeddings_payload
         )
-        
-    except (ModelNotLoadedException, ValidationException, EmbeddingProcessingException, 
+
+    except (ModelNotLoadedException, ValidationException, EmbeddingProcessingException,
             GPUMemoryException, ConcurrencyLimitException):
         raise
     except ValueError as e:
@@ -280,22 +282,22 @@ async def generate_embeddings_with_segments(request: EmbedRequest) -> EmbedWithS
 async def generate_quick_embeddings(request: QuickEmbedRequest) -> EmbedResponse:
     """
     Generate embeddings with temporary model loading.
-    
+
     This endpoint creates a temporary EmbeddingEngine instance for the request,
     which is useful for:
     - Testing different models without changing the main service model
     - One-off embedding requests with specific model requirements
     - Smaller workloads that don't justify loading a persistent model
-    
+
     Note: This endpoint has stricter limits on text length and batch size
     compared to the main embedding endpoint.
-    
+
     Args:
         request: Quick embedding request with texts, model name, and options
-    
+
     Returns:
         EmbedResponse: Generated embeddings with shape and processing time
-    
+
     Raises:
         InvalidModelException: If the model name is not available
         ValidationException: If input validation fails
@@ -304,7 +306,7 @@ async def generate_quick_embeddings(request: QuickEmbedRequest) -> EmbedResponse
         ConcurrencyLimitException: If service is at capacity
     """
     start_time = time.time()
-    
+
     async with embedding_manager.get_semaphore('embedding_requests'):
         try:
             # Validate model name against available models
@@ -314,26 +316,26 @@ async def generate_quick_embeddings(request: QuickEmbedRequest) -> EmbedResponse
                     model_name=request.model_name,
                     available_models=list(available_models.keys())
                 )
-            
+
             # Use convenience function for quick embedding
             embeddings = await quick_embed(
                 request.texts,
                 request.model_name,
                 request.use_segmentation
             )
-            
+
             # Validate and convert numpy array to list for JSON serialization
             validate_embedding_shape(embeddings)
             embeddings_list = numpy_to_list(embeddings)
             processing_time = time.time() - start_time
-            
+
             return EmbedResponse(
                 embeddings=embeddings_list,
                 shape=list(embeddings.shape),
                 processing_time=processing_time
             )
-            
-        except (InvalidModelException, ValidationException, EmbeddingProcessingException, 
+
+        except (InvalidModelException, ValidationException, EmbeddingProcessingException,
                 GPUMemoryException, ConcurrencyLimitException):
             raise
         except ValueError as e:
@@ -371,15 +373,15 @@ async def generate_quick_embeddings(request: QuickEmbedRequest) -> EmbedResponse
 async def get_embedding_stats():
     """
     Get statistics and performance metrics for embedding operations.
-    
+
     Returns information about:
     - Current semaphore usage for embedding requests
     - Model performance characteristics
     - Resource utilization
-    
+
     Returns:
         Dict containing embedding operation statistics
-    
+
     Raises:
         ConcurrencyLimitException: If service is at capacity
     """
@@ -392,7 +394,7 @@ async def get_embedding_stats():
                 'uptime_seconds': embedding_manager.uptime_seconds,
                 'timestamp': time.time()
             }
-            
+
             # Add model-specific stats if available
             if embedding_manager.is_model_loaded:
                 try:
@@ -408,13 +410,13 @@ async def get_embedding_stats():
                     stats['model_stats'] = None
             else:
                 stats['model_stats'] = None
-            
+
             # Add GPU memory info
             gpu_info = await embedding_manager.get_gpu_memory_info()
             stats['gpu_stats'] = gpu_info
-            
+
             return stats
-            
+
         except ConcurrencyLimitException:
             raise
         except Exception as e:

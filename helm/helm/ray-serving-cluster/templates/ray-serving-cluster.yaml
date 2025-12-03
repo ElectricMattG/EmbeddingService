@@ -4,7 +4,7 @@ metadata:
   {{ if .Values.namespace }}
   namespace: {{ .Values.namespace }}
   {{ end }}
-  labels: 
+  labels:
 {{ include "ray-serving-cluster.labels" . | indent 4 }}
   name: {{ include "ray-serving-cluster.fullname" . }}
   {{ if .Values.annotations }}
@@ -31,7 +31,7 @@ spec:
     {{- if .Values.rayClusterConfig.autoscalerOptions }}
     autoscalerOptions: {{- toYaml .Values.rayClusterConfig.autoscalerOptions | nindent 6 }}
     {{- end }}
-    
+
     headGroupSpec:
       serviceType: {{ .Values.service.type }}
       rayStartParams:
@@ -160,7 +160,7 @@ spec:
                   - mountPath: /tmp/ray
                     name: shared-logging
                   {{- end }}
-                {{- end }}  
+                {{- end }}
                 {{- if .Values.rayClusterConfig.worker.image }}
                 image: {{ .Values.rayClusterConfig.worker.image.repository }}:{{ .Values.rayClusterConfig.worker.image.tag }}
                 imagePullPolicy: {{ .Values.rayClusterConfig.worker.image.pullPolicy }}
@@ -193,12 +193,12 @@ spec:
                 {{- end }}
               {{- if .Values.rayClusterConfig.worker.sidecarContainers }}
               {{- toYaml .Values.rayClusterConfig.worker.sidecarContainers | nindent 14 }}
-              {{- end }}           
+              {{- end }}
             volumes:
               {{- if .Values.rayClusterConfig.worker.volumes }}
               {{- toYaml .Values.rayClusterConfig.worker.volumes | nindent 14 }}
               {{- end }}
-            {{- if .Values.sharedLogging.enabled }}            
+            {{- if .Values.sharedLogging.enabled }}
             - name: shared-logging
               persistentVolumeClaim:
                 claimName: {{ include "ray-serving-cluster.fullname" . }}-shared-logging

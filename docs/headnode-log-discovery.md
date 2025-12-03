@@ -42,7 +42,7 @@ kubectl exec <head-pod> -c ray-head -- head -50 /tmp/ray/session_*/logs/debug_st
 
 **Cluster Health Indicators:**
 - ✅ GCS shows 3+ registered nodes
-- ✅ Dashboard returns 200 OK every few seconds  
+- ✅ Dashboard returns 200 OK every few seconds
 - ✅ Raylet detects remote node managers
 - ✅ Runtime env agent running on port 60590
 

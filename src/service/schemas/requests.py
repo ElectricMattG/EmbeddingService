@@ -6,31 +6,32 @@ to all service endpoints.
 """
 
 from typing import List, Optional, Union
+
 from pydantic import BaseModel, Field, validator
 
 
 class EmbedRequest(BaseModel):
     """Request model for the main embedding endpoint."""
-    
+
     texts: Union[str, List[str]] = Field(
-        ..., 
+        ...,
         description="Single text string or list of text strings to embed",
         example=["Hello world", "This is a test sentence"]
     )
     batch_size: Optional[int] = Field(
-        None, 
+        None,
         description="Batch size for processing (uses default if None)",
-        ge=1, 
+        ge=1,
         le=1000,
         example=32
     )
     show_progress: bool = Field(
-        False, 
+        False,
         description="Whether to show progress information",
         example=False
     )
     use_segmentation: bool = Field(
-        True, 
+        True,
         description="Whether to use text segmentation for long texts",
         example=True
     )
@@ -39,7 +40,7 @@ class EmbedRequest(BaseModel):
         description="If true and segmentation is enabled, include per-segment embeddings in the response.",
         example=False
     )
-    
+
     @validator('texts')
     def validate_texts(cls, v):
         """Validate text inputs."""
@@ -65,23 +66,23 @@ class EmbedRequest(BaseModel):
 
 class QuickEmbedRequest(BaseModel):
     """Request model for the quick embedding endpoint."""
-    
+
     texts: Union[str, List[str]] = Field(
-        ..., 
+        ...,
         description="Single text string or list of text strings to embed",
         example="Quick embedding test"
     )
     model_name: str = Field(
-        'all-mini', 
+        'all-mini',
         description="Model to use for embedding generation",
         example="all-mini"
     )
     use_segmentation: bool = Field(
-        True, 
+        True,
         description="Whether to use text segmentation for long texts",
         example=True
     )
-    
+
     @validator('texts')
     def validate_texts(cls, v):
         """Validate text inputs (same as EmbedRequest)."""
@@ -103,7 +104,7 @@ class QuickEmbedRequest(BaseModel):
                 if len(text) > 50000:
                     raise ValueError("Text too long for quick embedding (max 50,000 characters)")
         return v
-    
+
     @validator('model_name')
     def validate_model_name(cls, v):
         """Validate model name against available models."""
@@ -115,18 +116,18 @@ class QuickEmbedRequest(BaseModel):
 
 class SimilarityRequest(BaseModel):
     """Request model for similarity computation."""
-    
+
     texts1: Union[str, List[str]] = Field(
-        ..., 
+        ...,
         description="First set of texts for similarity comparison",
         example=["Hello world", "Good morning"]
     )
     texts2: Union[str, List[str]] = Field(
-        ..., 
+        ...,
         description="Second set of texts for similarity comparison",
         example=["Hi there", "Good evening"]
     )
-    
+
     @validator('texts1', 'texts2')
     def validate_texts(cls, v):
         """Validate text inputs."""
@@ -152,25 +153,25 @@ class SimilarityRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     """Request model for similarity search."""
-    
+
     query: str = Field(
-        ..., 
+        ...,
         description="Query text to find similar texts for",
         example="What is machine learning?"
     )
     candidates: List[str] = Field(
-        ..., 
+        ...,
         description="List of candidate texts to search through",
         example=["AI is artificial intelligence", "ML helps with predictions", "Deep learning uses neural networks"]
     )
     top_k: int = Field(
-        5, 
+        5,
         description="Number of top matches to return",
-        ge=1, 
+        ge=1,
         le=100,
         example=5
     )
-    
+
     @validator('query')
     def validate_query(cls, v):
         """Validate query text."""
@@ -179,7 +180,7 @@ class SearchRequest(BaseModel):
         if len(v) > 10000:
             raise ValueError("Query too long (max 10,000 characters)")
         return v.strip()
-    
+
     @validator('candidates')
     def validate_candidates(cls, v):
         """Validate candidate texts."""
@@ -199,44 +200,44 @@ class SearchRequest(BaseModel):
 
 class ModelLoadRequest(BaseModel):
     """Request model for loading a specific model."""
-    
+
     model_name: str = Field(
-        ..., 
+        ...,
         description="Model identifier to load",
         example="all-mini"
     )
     device: Optional[str] = Field(
-        None, 
+        None,
         description="Device to use ('cuda', 'cpu', or None for auto-detection)",
         example="cuda"
     )
     max_length: Optional[int] = Field(
-        None, 
+        None,
         description="Maximum token length for input texts",
-        ge=32, 
+        ge=32,
         le=2048,
         example=512
     )
     batch_size: Optional[int] = Field(
-        None, 
+        None,
         description="Default batch size for processing",
-        ge=1, 
+        ge=1,
         le=256,
         example=32
     )
     normalize_embeddings: Optional[bool] = Field(
-        None, 
+        None,
         description="Whether to L2 normalize embeddings",
         example=True
     )
-    
+
     @validator('model_name')
     def validate_model_name(cls, v):
         """Validate model name."""
         if not v or len(v.strip()) == 0:
             raise ValueError("Model name cannot be empty")
         return v.strip()
-    
+
     @validator('device')
     def validate_device(cls, v):
         """Validate device specification."""

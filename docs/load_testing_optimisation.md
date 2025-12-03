@@ -36,14 +36,14 @@ graph TD
     E --> F[FastAPI Application]
     F --> G[Semaphore Limits]
     G --> H[Embedding Engine]
-    
+
     subgraph "Rate Limiting Layers"
         I[1. NGINX Rate Limiting]
         J[2. Ray Serve max_ongoing_requests]
         K[3. Application Semaphores]
         L[4. GPU Memory Constraints]
     end
-    
+
     D -.-> I
     E -.-> J
     F -.-> K
@@ -69,7 +69,7 @@ sequenceDiagram
     participant S as Semaphore
     participant EE as Embedding Engine
     participant GPU as GPU
-    
+
     C->>N: HTTP Request
     N->>RS: Forward to Ray Serve
     RS->>FA: Route to FastAPI
@@ -109,14 +109,14 @@ The Ray Serve configuration represents the primary orchestration layer for distr
 @serve.deployment(
     # Primary rate limiting - controls concurrent requests per replica
     max_ongoing_requests=100,  # ← Key parameter for Ray-level throttling
-    
+
     # Auto-scaling configuration
     autoscaling_config={
         "min_replicas": 2,     # Minimum worker replicas
         "max_replicas": 4,     # Maximum worker replicas
         "target_ongoing_requests": 50,  # Target load per replica
     },
-    
+
     # Resource allocation
     ray_actor_options={
         "num_gpus": 1,         # GPU allocation per replica
@@ -342,7 +342,7 @@ graph LR
     C -->|Pass| D[GPU Processing]
     C -->|Block| E[HTTP 429]
     B -->|Block| F[Ray Queue]
-    
+
     style E fill:#ffcccc
     style C fill:#ffffcc
 ```

@@ -1,8 +1,8 @@
 rayClusterConfig:
   head:
-    volumes:      
+    volumes:
       - name: head-creds
-        hostPath: 
+        hostPath:
           path: /home/ray/.aws/credentials
           type: Directory
     containerEnv:
@@ -14,13 +14,13 @@ rayClusterConfig:
         value: us-east-1
       - name: INFERENCE_DIR
         value: /home/ray/examples/legalbert512sift
-    volumeMounts:      
+    volumeMounts:
       - mountPath: /home/ray/.aws/credentials
         name: head-creds
   worker:
-    volumes:      
+    volumes:
       - name: worker-creds
-        hostPath: 
+        hostPath:
           path: /home/ray/.aws/credentials
           type: Directory
     containerEnv:
@@ -30,6 +30,6 @@ rayClusterConfig:
         value: prod-content-dev-renedev
       - name: AWS_DEFAULT_REGION
         value: us-east-1
-    volumeMounts:      
+    volumeMounts:
       - mountPath: /home/ray/.aws/credentials
         name: worker-creds

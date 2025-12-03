@@ -31,16 +31,16 @@ defaults = {
         # Model configuration
         "default_model": "all-mini",  # Default model - MiniLM for efficiency (maps to sentence-transformers/all-MiniLM-L6-v2)
         "cache_dir": None,            # Model cache directory (None = use transformers default)
-        
+
         # Performance settings
         "batch_size": 1024,           # Default batch size for processing (raised from 32)
         "max_length": 512,            # Maximum sequence length for tokenization
         "normalize_embeddings": True,  # Whether to L2 normalize embeddings
-        
+
         # Device settings
         "device": 'cuda',               # 'cuda', 'cpu', or None (auto-detect)
         "gpu_memory_fraction": 0.8,   # GPU memory usage limit
-        
+
         # Processing settings
         "show_progress": False,       # Progress logging
         "use_segmentation": True,     # Long text segmentation

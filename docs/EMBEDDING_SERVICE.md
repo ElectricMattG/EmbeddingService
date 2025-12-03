@@ -133,7 +133,7 @@ graph TB
     Engine[Embedding Engine]
     GPU[NVIDIA GPU]
     Cache[Model Cache]
-    
+
     Client -->|HTTP/JSON| LB
     LB -->|Port 8090| API
     API -->|Request| Middleware
@@ -141,7 +141,7 @@ graph TB
     Manager -->|Model Operations| Engine
     Engine -->|CUDA Operations| GPU
     Engine -.->|Load Models| Cache
-    
+
     subgraph "Middleware Stack"
         Middleware
         Val[Validation]
@@ -149,7 +149,7 @@ graph TB
         Err[Error Handler]
         CORS[CORS]
     end
-    
+
     subgraph "Concurrency Control"
         Sem1[GPU Semaphore: 4]
         Sem2[Model Load: 1]
@@ -169,20 +169,20 @@ sequenceDiagram
     participant EM as Engine Manager
     participant EE as Embedding Engine
     participant GPU as GPU/CUDA
-    
+
     C->>M: POST /embeddings
     M->>V: Validate request size & rate
     V->>EM: Get engine instance
     EM->>EM: Check semaphore availability
-    
+
     alt Model Not Loaded
         EM->>EE: Load model (with semaphore)
         EE->>GPU: Initialize model on GPU
         GPU-->>EE: Model ready
     end
-    
+
     EM->>EE: Process texts (with semaphore)
-    
+
     alt Use Segmentation
         EE->>EE: Segment long texts
         loop For each segment batch
@@ -196,7 +196,7 @@ sequenceDiagram
         GPU-->>EE: Token embeddings
         EE->>EE: Mean pooling
     end
-    
+
     EE->>EE: L2 normalize (if enabled)
     EE-->>EM: Embeddings array
     EM-->>M: Response data
@@ -262,16 +262,16 @@ Singleton manager that wraps `EmbeddingEngine` with lifecycle management:
   - Creates new `EmbeddingEngine` instance
   - Replaces `self._engine` with new instance
   - Updates `self._current_model` tracking
-  
+
 - `get_engine()`: Returns current engine instance
   - Raises `ModelNotLoadedException` if `self._engine is None`
-  
+
 - `ensure_model_loaded()`: Loads default model if none loaded
   - Called by route handlers before operations
-  
+
 - `get_semaphore(semaphore_type)`: Returns `asyncio.Semaphore` for concurrency control
   - Types: 'gpu_operations', 'model_loading', 'embedding_requests', 'similarity_requests', 'health_checks'
-  
+
 - `cleanup()`: Async cleanup method
   - Clears model from GPU memory
   - Sets `self._engine = None`
@@ -295,9 +295,9 @@ async def lifespan(app: FastAPI):
     manager = EmbeddingEngineManager.get_instance()
     default_model = app_conf.get("embedding.default_model")
     await manager.load_model(default_model)
-    
+
     yield  # Application runs
-    
+
     # Shutdown
     await manager.cleanup()
 ```
@@ -320,7 +320,7 @@ classDiagram
         +_logger: Logger
         +__init__(conf)
     }
-    
+
     class EmbeddingEngine {
         +model: AutoModel
         +tokenizer: AutoTokenizer
@@ -334,7 +334,7 @@ classDiagram
         -_process_batch(texts) ndarray
         -_segment_text(text) List~str~
     }
-    
+
     class EmbeddingEngineManager {
         -_instance: EmbeddingEngineManager
         -_engine: EmbeddingEngine
@@ -346,37 +346,37 @@ classDiagram
         +get_semaphore(type) Semaphore
         +is_model_loaded bool
     }
-    
+
     class FastAPIApp {
         +app: FastAPI
         +lifespan()
         +routes: List~APIRoute~
         +middleware: List
     }
-    
+
     class Middleware {
         <<interface>>
         +dispatch(request, call_next)
     }
-    
+
     class ValidationMiddleware {
         +max_requests_per_minute: int
         +dispatch(request, call_next)
         -_check_rate_limit(ip)
         -_validate_request_size(request)
     }
-    
+
     class LoggingMiddleware {
         +dispatch(request, call_next)
         -_log_request(request)
         -_log_response(response, duration)
     }
-    
+
     class ErrorHandlerMiddleware {
         +dispatch(request, call_next)
         -_handle_exception(exc)
     }
-    
+
     Base <|-- EmbeddingEngine
     EmbeddingEngineManager o-- EmbeddingEngine
     FastAPIApp *-- EmbeddingEngineManager
@@ -460,16 +460,16 @@ class EmbeddingEngine(Base):
     "default_model": "all-mini",          # Default model identifier
     "cache_dir": None,                    # Model cache (None = ~/.cache/huggingface)
     "fallback_model": "distilbert-base-uncased",  # Fallback if default fails
-    
+
     # Performance
     "batch_size": 32,                     # Default batch size
     "max_length": 512,                    # Max sequence length (tokens)
     "normalize_embeddings": True,         # L2 normalize output vectors
-    
+
     # Device
     "device": "cuda",                     # "cuda", "cpu", or None (auto-detect)
     "gpu_memory_fraction": 0.8,          # GPU memory limit (not enforced)
-    
+
     # Text Processing
     "show_progress": False,               # Log processing progress
     "use_segmentation": True,             # Enable text segmentation
@@ -479,7 +479,7 @@ class EmbeddingEngine(Base):
 
 **Purpose**: Controls embedding generation behavior
 
-**Used by**: 
+**Used by**:
 - **`EmbeddingEngine` class** (`src/components/embedding_engine.py`): The constructor reads these values via `self._app_config.get()` to initialize model parameters
 - **`EmbeddingEngineManager` class** (`src/service/core/engine_manager.py`): Reads `embedding.default_model` to determine which model to pre-load
 - **Route handlers** in `src/service/routes/embeddings.py`: Default values for optional request parameters
@@ -531,7 +531,7 @@ SMALL_MODELS = {
   - `"cuda"`: Force GPU (will fail if CUDA unavailable)
   - `"cpu"`: Force CPU
   - `None`: Auto-detect using `torch.cuda.is_available()` (prefers CUDA if available)
-  
+
   The model and tokenizer are moved to this device via `self.model.to(self.device)`.
 
 #### Text Processing
@@ -568,7 +568,7 @@ SMALL_MODELS = {
       if len(text) > max_length:
           raise ValidationException(f"Text exceeds maximum length of {max_length}")
   ```
-  
+
 - `max_batch_size`: Used by `validate_batch_size()` in `src/service/utils/validation.py` to limit the number of texts per request:
   ```python
   def validate_batch_size(batch_size: int, max_size: int = 100):
@@ -1232,13 +1232,13 @@ All custom exceptions inherit from `ServiceException`:
 ```python
 class ServiceException(Exception):
     """Base exception for all service errors"""
-    
+
 class ModelNotLoadedException(ServiceException):
     """Raised when operation requires a loaded model"""
-    
+
 class GPUMemoryException(ServiceException):
     """Raised when GPU runs out of memory"""
-    
+
 class ConcurrencyLimitException(ServiceException):
     """Raised when semaphore limit is reached"""
 ```
@@ -1265,29 +1265,29 @@ sequenceDiagram
 
     Client->>Uvicorn: POST /embeddings {"texts": [...]}
     Uvicorn->>Middleware Stack: Request object
-    
+
     Note over Middleware Stack: RequestValidationMiddleware
     Middleware Stack->>Middleware Stack: Check request size
     Middleware Stack->>Middleware Stack: Check rate limit
-    
+
     Note over Middleware Stack: LoggingMiddleware
     Middleware Stack->>Middleware Stack: Log request details
-    
+
     Note over Middleware Stack: ErrorHandlerMiddleware
     Middleware Stack->>Router: Forward to route handler
-    
+
     Router->>Router: Parse EmbedRequest schema
     Router->>Router: validate_text_input()
     Router->>Router: validate_batch_size()
-    
+
     Router->>Manager: embedding_manager.get_semaphore('embedding_requests')
     Manager->>Router: Semaphore acquired
-    
+
     Router->>Manager: manager.get_engine()
     Manager->>Router: EmbeddingEngine instance
-    
+
     Router->>Engine: engine.embed(texts, batch_size, use_segmentation)
-    
+
     alt Use Segmentation
         loop For each text
             Engine->>Engine: _segment_text(text)
@@ -1305,13 +1305,13 @@ sequenceDiagram
         GPU->>Engine: Token embeddings
         Engine->>Engine: Mean pooling
     end
-    
+
     Engine->>Engine: L2 normalize (if enabled)
     Engine->>Router: NumPy array (n_texts, embedding_dim)
-    
+
     Router->>Router: numpy_to_list(embeddings)
     Router->>Router: Create EmbedResponse
-    
+
     Router->>Middleware Stack: Response object
     Middleware Stack->>Middleware Stack: Log response time
     Middleware Stack->>Uvicorn: JSON response
@@ -1374,9 +1374,9 @@ sequenceDiagram
 - `_process_batch(texts)` tokenizes all texts:
   ```python
   inputs = self.tokenizer(
-      texts, 
-      padding=True, 
-      truncation=True, 
+      texts,
+      padding=True,
+      truncation=True,
       max_length=self.max_length,
       return_tensors='pt'
   ).to(self.device)
@@ -1409,7 +1409,7 @@ sequenceDiagram
 When a parameter can come from multiple sources, the order of precedence is:
 
 1. **Request parameter** (highest priority)
-2. **Function argument** 
+2. **Function argument**
 3. **Configuration value** (`app_conf.get()`)
 4. **Hardcoded default** (lowest priority)
 
@@ -1417,7 +1417,7 @@ Example in `EmbeddingEngine.__init__()`:
 ```python
 self.max_length = (
     max_length                           # 1. Constructor argument
-    if max_length is not None 
+    if max_length is not None
     else (config_max_length or 512)     # 2. Config, 3. Default
 )
 ```
@@ -1593,10 +1593,10 @@ from tqdm import tqdm
 def embed_large_dataset(texts: list[str], batch_size: int = 100):
     """Efficiently embed large dataset in batches."""
     all_embeddings = []
-    
+
     for i in tqdm(range(0, len(texts), batch_size)):
         batch = texts[i:i + batch_size]
-        
+
         response = requests.post(
             "http://localhost:8090/embeddings",
             json={
@@ -1604,10 +1604,10 @@ def embed_large_dataset(texts: list[str], batch_size: int = 100):
                 "batch_size": 32  # GPU batch size
             }
         )
-        
+
         embeddings = response.json()["embeddings"]
         all_embeddings.extend(embeddings)
-    
+
     return np.array(all_embeddings)
 
 # Process 10,000 documents
@@ -1692,7 +1692,7 @@ upstream embedding_backend {
 
 server {
     listen 80;
-    
+
     location / {
         proxy_pass http://embedding_backend;
         proxy_set_header Host $host;
@@ -1701,7 +1701,7 @@ server {
         proxy_send_timeout 90s;
         proxy_read_timeout 90s;
     }
-    
+
     location /health {
         proxy_pass http://embedding_backend;
         proxy_connect_timeout 5s;
@@ -1727,7 +1727,7 @@ server {
 
 #### 2. CUDA Out of Memory
 
-**Symptom**: 
+**Symptom**:
 ```
 RuntimeError: CUDA out of memory
 ```

@@ -31,7 +31,7 @@ from src.service.main import app
 class EmbeddingServiceDeployment:
     """
     Ray Serve deployment that wraps the FastAPI application.
-    
+
     The @serve.ingress decorator makes all FastAPI routes available
     through Ray Serve, preserving all existing endpoints, middleware,
     and business logic without modification.

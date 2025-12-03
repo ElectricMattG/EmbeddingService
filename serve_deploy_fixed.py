@@ -5,6 +5,7 @@ This version uses absolute imports to avoid module path issues.
 """
 
 import sys
+
 import ray
 from ray import serve
 
@@ -16,6 +17,7 @@ ray.init(address="auto")
 
 # Import using absolute path from app directory
 from src.service.main import app
+
 
 @serve.deployment(
     name="embedding-service",
@@ -33,7 +35,7 @@ class EmbeddingServiceDeployment:
     def __init__(self, max_batch: int = 512):
         """Initialize the embedding service with the given configuration."""
         print(f"🚀 Initializing EmbeddingService with max_batch={max_batch}")
-        
+
     async def __call__(self, request):
         """Handle incoming requests by forwarding to the FastAPI app."""
         return await app(request)

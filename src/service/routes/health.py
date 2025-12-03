@@ -7,16 +7,16 @@ status information including resource utilization.
 
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
 from src.service.core.engine_manager import embedding_manager
-from src.service.schemas.responses import HealthResponse, StatusResponse, ModelInfoResponse
-from src.service.core.exceptions import (
-    ModelNotLoadedException,
-    ConcurrencyLimitException
-)
+from src.service.core.exceptions import (ConcurrencyLimitException,
+                                         ModelNotLoadedException)
+from src.service.schemas.responses import (HealthResponse, ModelInfoResponse,
+                                           StatusResponse)
 
 # Create router
 router = APIRouter(tags=["Health & Status"])
@@ -40,24 +40,24 @@ router = APIRouter(tags=["Health & Status"])
 async def health_check() -> HealthResponse:
     """
     Basic health check endpoint.
-    
+
     This is a lightweight endpoint designed for:
     - Load balancer health checks
     - Basic service availability monitoring
     - Quick status verification
-    
+
     Returns:
         HealthResponse: Basic health status and timestamp
     """
     try:
         # Basic health check - just verify the service is responding
         timestamp = datetime.now(timezone.utc).isoformat()
-        
+
         return HealthResponse(
             status="healthy",
             timestamp=timestamp
         )
-        
+
     except Exception as e:
         # If we can't even return a basic response, service is unhealthy
         raise HTTPException(
@@ -82,15 +82,15 @@ async def health_check() -> HealthResponse:
 async def readiness_check():
     """
     Readiness check endpoint.
-    
+
     This endpoint verifies that the service is ready to handle requests by checking:
     - Basic service functionality
     - Model loading status (if auto-load is enabled)
     - Critical resource availability
-    
+
     Returns:
         Dict with readiness status and details
-    
+
     Raises:
         HTTPException: If service is not ready
     """
@@ -98,10 +98,10 @@ async def readiness_check():
         # Use health checks semaphore with minimal blocking
         async with embedding_manager.get_semaphore('health_checks'):
             timestamp = datetime.now(timezone.utc).isoformat()
-            
+
             # Check if auto-load is enabled and we should have a model
             auto_load_default = getattr(embedding_manager, '_auto_load_default', True)
-            
+
             readiness_status = {
                 'status': 'ready',
                 'timestamp': timestamp,
@@ -109,7 +109,7 @@ async def readiness_check():
                 'auto_load_enabled': auto_load_default,
                 'uptime_seconds': embedding_manager.uptime_seconds
             }
-            
+
             # If auto-load is enabled but no model is loaded, try to ensure default model
             if auto_load_default and not embedding_manager.is_model_loaded:
                 try:
@@ -119,14 +119,14 @@ async def readiness_check():
                 except Exception as e:
                     readiness_status['status'] = 'not_ready'
                     readiness_status['message'] = f'Failed to load default model: {str(e)}'
-                    
+
                     raise HTTPException(
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         detail=readiness_status
                     )
-            
+
             return readiness_status
-            
+
     except ConcurrencyLimitException:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -162,17 +162,17 @@ async def readiness_check():
 async def get_service_status() -> StatusResponse:
     """
     Get comprehensive service status information.
-    
+
     This endpoint provides detailed information about:
     - Service health and uptime
     - Currently loaded model and its configuration
     - GPU memory utilization
     - Semaphore usage and concurrency status
     - Performance metrics
-    
+
     Returns:
         StatusResponse: Comprehensive service status information
-    
+
     Raises:
         ConcurrencyLimitException: If service is at capacity
     """
@@ -180,7 +180,7 @@ async def get_service_status() -> StatusResponse:
         try:
             timestamp = datetime.now(timezone.utc).isoformat()
             uptime_seconds = embedding_manager.uptime_seconds
-            
+
             # Get model information if available
             model_info = None
             if embedding_manager.is_model_loaded:
@@ -198,10 +198,10 @@ async def get_service_status() -> StatusResponse:
                     )
                 except ModelNotLoadedException:
                     model_info = None
-            
+
             # Get GPU memory information
             gpu_info = await embedding_manager.get_gpu_memory_info()
-            
+
             return StatusResponse(
                 status="healthy",
                 model_loaded=embedding_manager.is_model_loaded,
@@ -212,7 +212,7 @@ async def get_service_status() -> StatusResponse:
                 uptime_seconds=uptime_seconds,
                 timestamp=timestamp
             )
-            
+
         except ConcurrencyLimitException:
             raise
         except Exception as e:
@@ -241,23 +241,23 @@ async def get_service_status() -> StatusResponse:
 async def get_performance_metrics() -> Dict[str, Any]:
     """
     Get detailed performance metrics and resource utilization.
-    
+
     This endpoint provides comprehensive metrics including:
     - Semaphore usage across all operation types
     - GPU memory utilization and efficiency
     - Service uptime and availability
     - Model performance characteristics
-    
+
     Returns:
         Dict containing detailed performance metrics
-    
+
     Raises:
         ConcurrencyLimitException: If service is at capacity
     """
     async with embedding_manager.get_semaphore('health_checks'):
         try:
             timestamp = datetime.now(timezone.utc).isoformat()
-            
+
             # Get comprehensive metrics
             metrics = {
                 'timestamp': timestamp,
@@ -270,7 +270,7 @@ async def get_performance_metrics() -> Dict[str, Any]:
                 'semaphore_metrics': embedding_manager.semaphore_status,
                 'available_models': embedding_manager.available_models
             }
-            
+
             # Add model-specific metrics if available
             if embedding_manager.is_model_loaded:
                 try:
@@ -289,11 +289,11 @@ async def get_performance_metrics() -> Dict[str, Any]:
                     metrics['model_metrics'] = None
             else:
                 metrics['model_metrics'] = None
-            
+
             # Add GPU metrics
             gpu_info = await embedding_manager.get_gpu_memory_info()
             metrics['gpu_metrics'] = gpu_info
-            
+
             # Add efficiency metrics if GPU info is available
             if gpu_info['gpu_available'] and gpu_info.get('gpu_memory_used') and gpu_info.get('gpu_memory_total'):
                 used_gb = gpu_info.get('gpu_memory_used_gb', 0)
@@ -303,12 +303,12 @@ async def get_performance_metrics() -> Dict[str, Any]:
                     'memory_available_gb': total_gb - used_gb,
                     'memory_efficiency_score': min(used_gb / total_gb * 100, 100) if total_gb > 0 else 0
                 }
-            
+
             # Add concurrency metrics
             semaphore_status = embedding_manager.semaphore_status
             total_capacity = sum(sem['limit'] for sem in semaphore_status.values())
             total_in_use = sum(sem['in_use'] for sem in semaphore_status.values())
-            
+
             metrics['concurrency_metrics'] = {
                 'total_capacity': total_capacity,
                 'total_in_use': total_in_use,
@@ -316,9 +316,9 @@ async def get_performance_metrics() -> Dict[str, Any]:
                 'utilization_percent': (total_in_use / total_capacity * 100) if total_capacity > 0 else 0,
                 'semaphore_breakdown': semaphore_status
             }
-            
+
             return metrics
-            
+
         except ConcurrencyLimitException:
             raise
         except Exception as e:
@@ -344,10 +344,10 @@ async def get_performance_metrics() -> Dict[str, Any]:
 async def liveness_probe():
     """
     Liveness probe endpoint for Kubernetes health checks.
-    
+
     This endpoint is designed for Kubernetes liveness probes and should
     only fail if the service process is completely unresponsive.
-    
+
     Returns:
         Dict with minimal alive status
     """

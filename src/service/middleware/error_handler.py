@@ -13,24 +13,21 @@ This middleware provides:
 import asyncio
 import logging
 import traceback
-from typing import Dict, Any, Union
+from typing import Any, Dict, Union
+
 import numpy as np
-
-from fastapi import FastAPI, Request, Response, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from ..core.exceptions import (
-    ModelNotLoadedException,
-    InvalidModelException, 
-    EmbeddingProcessingException,
-    GPUMemoryException,
-    ConcurrencyLimitException,
-    convert_to_http_exception
-)
+from ..core.exceptions import (ConcurrencyLimitException,
+                               EmbeddingProcessingException,
+                               GPUMemoryException, InvalidModelException,
+                               ModelNotLoadedException,
+                               convert_to_http_exception)
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -39,7 +36,7 @@ logger = logging.getLogger(__name__)
 class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     """
     Global error handling middleware that catches and processes all exceptions.
-    
+
     Provides consistent error responses and logging for:
     - Custom business exceptions
     - HTTP exceptions
@@ -48,15 +45,15 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     - GPU memory errors
     - Unexpected exceptions
     """
-    
+
     async def dispatch(self, request: Request, call_next):
         """
         Process requests and handle any exceptions that occur.
-        
+
         Args:
             request: FastAPI request object
             call_next: Next middleware/handler in the chain
-            
+
         Returns:
             Response object with appropriate error handling
         """
@@ -64,19 +61,19 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             # Process the request
             response = await call_next(request)
             return response
-            
+
         except Exception as exc:
             # Handle the exception and return appropriate error response
             return await self._handle_exception(request, exc)
-    
+
     async def _handle_exception(self, request: Request, exc: Exception) -> JSONResponse:
         """
         Handle specific exception types and format error responses.
-        
+
         Args:
             request: FastAPI request object
             exc: Exception that occurred
-            
+
         Returns:
             JSONResponse with formatted error details
         """
@@ -87,7 +84,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             "client_ip": request.client.host if request.client else "unknown",
             "query_params": dict(request.query_params),
         }
-        
+
         # Handle different exception types
         if isinstance(exc, ModelNotLoadedException):
             return self._create_error_response(
@@ -97,7 +94,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 details={"suggestion": "Load a model first using POST /models/load"},
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, InvalidModelException):
             return self._create_error_response(
                 status_code=400,
@@ -106,7 +103,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 details={"suggestion": "Check available models at GET /models/available"},
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, EmbeddingProcessingException):
             logger.error(f"Embedding processing error: {exc}", extra=request_context)
             return self._create_error_response(
@@ -116,7 +113,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 details={"suggestion": "Check input format and try again"},
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, GPUMemoryException):
             logger.error(f"GPU memory error: {exc}", extra=request_context)
             return self._create_error_response(
@@ -129,7 +126,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 },
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, ConcurrencyLimitException):
             logger.warning(f"Concurrency limit reached: {exc}", extra=request_context)
             return self._create_error_response(
@@ -139,7 +136,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 details={"suggestion": "Reduce concurrent requests or try again later"},
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, HTTPException):
             # FastAPI HTTPException
             return self._create_error_response(
@@ -148,24 +145,24 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 message=exc.detail,
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, StarletteHTTPException):
             # Starlette HTTPException
             return self._create_error_response(
                 status_code=exc.status_code,
-                error_type="HTTPError", 
+                error_type="HTTPError",
                 message=exc.detail,
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, RequestValidationError):
             # Pydantic validation error
             return self._handle_validation_error(exc, request_context)
-        
+
         elif isinstance(exc, ValidationError):
             # General validation error
             return self._handle_validation_error(exc, request_context)
-        
+
         elif isinstance(exc, (TypeError, ValueError)) and "JSON" in str(exc):
             # Likely numpy serialization error
             logger.error(f"JSON serialization error: {exc}", extra=request_context)
@@ -179,7 +176,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 },
                 request_context=request_context
             )
-        
+
         elif isinstance(exc, asyncio.TimeoutError):
             # Request timeout
             logger.error(f"Request timeout: {exc}", extra=request_context)
@@ -190,7 +187,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 details={"suggestion": "Try reducing batch size or try again later"},
                 request_context=request_context
             )
-        
+
         else:
             # Unexpected error - log full traceback
             logger.error(
@@ -208,24 +205,24 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 },
                 request_context=request_context
             )
-    
+
     def _handle_validation_error(
-        self, 
-        exc: Union[RequestValidationError, ValidationError], 
+        self,
+        exc: Union[RequestValidationError, ValidationError],
         request_context: Dict[str, Any]
     ) -> JSONResponse:
         """
         Handle Pydantic validation errors with detailed field information.
-        
+
         Args:
             exc: Validation error from Pydantic
             request_context: Request context for logging
-            
+
         Returns:
             JSONResponse with validation error details
         """
         error_details = []
-        
+
         if hasattr(exc, 'errors'):
             for error in exc.errors():
                 error_details.append({
@@ -234,9 +231,9 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                     "type": error.get("type", "unknown"),
                     "input": error.get("input", "not provided")
                 })
-        
+
         logger.warning(f"Validation error: {exc}", extra=request_context)
-        
+
         return self._create_error_response(
             status_code=422,  # Unprocessable Entity
             error_type="ValidationError",
@@ -247,7 +244,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             },
             request_context=request_context
         )
-    
+
     def _create_error_response(
         self,
         status_code: int,
@@ -258,14 +255,14 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
     ) -> JSONResponse:
         """
         Create standardized error response.
-        
+
         Args:
             status_code: HTTP status code
             error_type: Type of error for client identification
             message: Human-readable error message
             details: Additional error details and suggestions
             request_context: Request context information
-            
+
         Returns:
             JSONResponse with standardized error format
         """
@@ -277,14 +274,14 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 "timestamp": asyncio.get_event_loop().time()
             }
         }
-        
+
         if details:
             error_response["error"]["details"] = details
-        
+
         # Add request context for debugging (optional in production)
         if request_context and logger.isEnabledFor(logging.DEBUG):
             error_response["error"]["request_context"] = request_context
-        
+
         return JSONResponse(
             status_code=status_code,
             content=error_response
@@ -294,11 +291,11 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
 def add_exception_handlers(app: FastAPI) -> None:
     """
     Add global exception handlers to FastAPI app.
-    
+
     Args:
         app: FastAPI application instance
     """
-    
+
     @app.exception_handler(ModelNotLoadedException)
     async def model_not_loaded_handler(request: Request, exc: ModelNotLoadedException):
         return JSONResponse(
@@ -311,7 +308,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(InvalidModelException)
     async def invalid_model_handler(request: Request, exc: InvalidModelException):
         return JSONResponse(
@@ -324,7 +321,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(EmbeddingProcessingException)
     async def embedding_processing_handler(request: Request, exc: EmbeddingProcessingException):
         logger.error(f"Embedding processing error: {exc}")
@@ -338,7 +335,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(GPUMemoryException)
     async def gpu_memory_handler(request: Request, exc: GPUMemoryException):
         logger.error(f"GPU memory error: {exc}")
@@ -355,7 +352,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(ConcurrencyLimitException)
     async def concurrency_limit_handler(request: Request, exc: ConcurrencyLimitException):
         logger.warning(f"Concurrency limit reached: {exc}")
@@ -369,7 +366,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError):
         error_details = []
@@ -379,7 +376,7 @@ def add_exception_handlers(app: FastAPI) -> None:
                 "message": error.get("msg", "Validation error"),
                 "type": error.get("type", "unknown")
             })
-        
+
         return JSONResponse(
             status_code=422,
             content={
@@ -393,5 +390,5 @@ def add_exception_handlers(app: FastAPI) -> None:
                 }
             }
         )
-    
+
     logger.info("Global exception handlers registered successfully")

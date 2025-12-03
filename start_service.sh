@@ -63,7 +63,7 @@ for port in "${ports[@]}"; do
 done
 
 echo
-echo "Started services and PID files:" 
+echo "Started services and PID files:"
 for port in "${ports[@]}"; do
   pidfile="$RUN_DIR/pid_${port}.txt"
   pid="$(cat "$pidfile" 2>/dev/null || echo 'no pid')"

@@ -6,12 +6,13 @@ and other request parameters using configuration-based limits.
 """
 
 from typing import List, Union
+
 from src.config import app_conf
 
 
 class ValidationError(Exception):
     """Custom exception for validation errors."""
-    
+
     def __init__(self, message: str, field: str = None, details: dict = None):
         self.message = message
         self.field = field
@@ -22,17 +23,17 @@ class ValidationError(Exception):
 def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts") -> None:
     """
     Validate text inputs against configuration limits.
-    
+
     Args:
         texts: Single text or list of texts to validate
         field_name: Name of the field being validated (for error messages)
-        
+
     Raises:
         ValidationError: If validation fails
     """
     max_text_length = app_conf.get('service.max_text_length') or 8192
     max_batch_size = app_conf.get('service.max_batch_size') or 100
-    
+
     if isinstance(texts, str):
         # Single text validation
         if len(texts.strip()) == 0:
@@ -41,7 +42,7 @@ def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts")
                 field=field_name,
                 details={"received_length": len(texts.strip())}
             )
-        
+
         if len(texts) > max_text_length:
             raise ValidationError(
                 f"Text exceeds maximum length",
@@ -51,7 +52,7 @@ def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts")
                     "received_length": len(texts)
                 }
             )
-            
+
     elif isinstance(texts, list):
         # List of texts validation
         if len(texts) == 0:
@@ -60,7 +61,7 @@ def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts")
                 field=field_name,
                 details={"received_count": 0}
             )
-        
+
         if len(texts) > max_batch_size:
             raise ValidationError(
                 f"Too many texts in batch",
@@ -70,7 +71,7 @@ def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts")
                     "received_count": len(texts)
                 }
             )
-        
+
         # Validate each text in the list
         for i, text in enumerate(texts):
             if not isinstance(text, str):
@@ -79,14 +80,14 @@ def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts")
                     field=f"{field_name}[{i}]",
                     details={"received_type": type(text).__name__}
                 )
-            
+
             if len(text.strip()) == 0:
                 raise ValidationError(
                     f"Text at index {i} cannot be empty or whitespace only",
                     field=f"{field_name}[{i}]",
                     details={"index": i}
                 )
-            
+
             if len(text) > max_text_length:
                 raise ValidationError(
                     f"Text at index {i} exceeds maximum length",
@@ -108,23 +109,23 @@ def validate_text_input(texts: Union[str, List[str]], field_name: str = "texts")
 def validate_batch_size(batch_size: int, field_name: str = "batch_size") -> None:
     """
     Validate batch size parameter.
-    
+
     Args:
         batch_size: Batch size to validate
         field_name: Name of the field being validated
-        
+
     Raises:
         ValidationError: If validation fails
     """
     max_batch_size = app_conf.get('service.max_batch_size') or 100
-    
+
     if batch_size < 1:
         raise ValidationError(
             f"Batch size must be at least 1",
             field=field_name,
             details={"received_value": batch_size}
         )
-    
+
     if batch_size > max_batch_size:
         raise ValidationError(
             f"Batch size exceeds maximum",
@@ -139,26 +140,26 @@ def validate_batch_size(batch_size: int, field_name: str = "batch_size") -> None
 def validate_similarity_inputs(texts1: Union[str, List[str]], texts2: Union[str, List[str]]) -> None:
     """
     Validate inputs for similarity computation.
-    
+
     Args:
         texts1: First set of texts
         texts2: Second set of texts
-        
+
     Raises:
         ValidationError: If validation fails
     """
     # Validate both text sets
     validate_text_input(texts1, "texts1")
     validate_text_input(texts2, "texts2")
-    
+
     # Additional validation for similarity operations
     max_candidates = app_conf.get('service.max_candidates') or 1000
-    
+
     # Count total comparisons
     count1 = 1 if isinstance(texts1, str) else len(texts1)
     count2 = 1 if isinstance(texts2, str) else len(texts2)
     total_comparisons = count1 * count2
-    
+
     if total_comparisons > max_candidates:
         raise ValidationError(
             f"Too many similarity comparisons",
@@ -175,10 +176,10 @@ def validate_similarity_inputs(texts1: Union[str, List[str]], texts2: Union[str,
 def estimate_request_size(data: dict) -> int:
     """
     Estimate the size of a request in bytes.
-    
+
     Args:
         data: Request data dictionary
-        
+
     Returns:
         Estimated size in bytes
     """
@@ -201,16 +202,16 @@ def estimate_request_size(data: dict) -> int:
 def validate_request_size(data: dict) -> None:
     """
     Validate that request size doesn't exceed limits.
-    
+
     Args:
         data: Request data to validate
-        
+
     Raises:
         ValidationError: If request is too large
     """
     max_request_size = app_conf.get('service.max_request_size') or 10485760  # 10MB
     estimated_size = estimate_request_size(data)
-    
+
     if estimated_size > max_request_size:
         raise ValidationError(
             f"Request size exceeds maximum",

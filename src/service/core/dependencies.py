@@ -11,25 +11,18 @@ This module provides reusable dependencies for:
 
 import asyncio
 import logging
-from typing import Annotated, Dict, Any, Optional
 from functools import lru_cache
+from typing import Annotated, Any, Dict, Optional
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer
 
+from ..schemas.requests import (EmbedRequest, ModelLoadRequest,
+                                QuickEmbedRequest, SearchRequest,
+                                SimilarityRequest)
 from .engine_manager import EmbeddingEngineManager
-from .exceptions import (
-    ConcurrencyLimitException,
-    ModelNotLoadedException,
-    convert_to_http_exception
-)
-from ..schemas.requests import (
-    EmbedRequest,
-    QuickEmbedRequest,
-    SimilarityRequest,
-    SearchRequest,
-    ModelLoadRequest
-)
+from .exceptions import (ConcurrencyLimitException, ModelNotLoadedException,
+                         convert_to_http_exception)
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -66,13 +59,13 @@ def initialize_semaphores() -> None:
 def get_semaphore(operation_type: str = "embedding_requests") -> asyncio.Semaphore:
     """
     Get semaphore for specific operation type.
-    
+
     Args:
         operation_type: Type of operation requesting semaphore
-        
+
     Returns:
         Configured semaphore for the operation type
-        
+
     Raises:
         ValueError: If operation_type is not recognized
     """
@@ -82,17 +75,17 @@ def get_semaphore(operation_type: str = "embedding_requests") -> asyncio.Semapho
             _semaphores[operation_type] = asyncio.Semaphore(SEMAPHORE_LIMITS[operation_type])
         else:
             raise ValueError(f"Unknown operation type: {operation_type}")
-    
+
     return _semaphores[operation_type]
 
 
 async def get_embedding_manager() -> EmbeddingEngineManager:
     """
     Dependency to get the singleton EmbeddingEngine manager.
-    
+
     Returns:
         EmbeddingEngineManager instance
-        
+
     Raises:
         HTTPException: If manager initialization fails
     """
@@ -108,13 +101,13 @@ async def get_current_model_info(
 ) -> Dict[str, Any]:
     """
     Dependency to get current model information.
-    
+
     Args:
         manager: EmbeddingEngine manager instance
-        
+
     Returns:
         Current model information dictionary
-        
+
     Raises:
         HTTPException: If no model is loaded
     """
@@ -123,7 +116,7 @@ async def get_current_model_info(
         async with semaphore:
             if not manager.is_model_loaded():
                 raise ModelNotLoadedException("No model is currently loaded")
-            
+
             engine = await manager.get_engine()
             return engine.get_model_info()
     except Exception as e:
@@ -136,13 +129,13 @@ async def validate_model_loaded(
 ) -> EmbeddingEngineManager:
     """
     Dependency to ensure a model is loaded before processing.
-    
+
     Args:
         manager: EmbeddingEngine manager instance
-        
+
     Returns:
         Manager instance if model is loaded
-        
+
     Raises:
         HTTPException: If no model is loaded
     """
@@ -154,26 +147,26 @@ async def validate_model_loaded(
 def validate_embed_request(request: EmbedRequest) -> EmbedRequest:
     """
     Validate embedding request parameters.
-    
+
     Args:
         request: Embedding request to validate
-        
+
     Returns:
         Validated request
-        
+
     Raises:
         HTTPException: If validation fails
     """
     # Additional validation beyond Pydantic
     if len(request.texts) == 0:
         raise HTTPException(status_code=400, detail="At least one text must be provided")
-    
+
     # Check individual text lengths
     max_length = 8192  # Configurable limit
     for i, text in enumerate(request.texts):
         if len(text.strip()) == 0:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Text at index {i} is empty or whitespace only"
             )
         if len(text) > max_length:
@@ -181,20 +174,20 @@ def validate_embed_request(request: EmbedRequest) -> EmbedRequest:
                 status_code=400,
                 detail=f"Text at index {i} exceeds maximum length of {max_length} characters"
             )
-    
+
     return request
 
 
 def validate_quick_embed_request(request: QuickEmbedRequest) -> QuickEmbedRequest:
     """
     Validate quick embedding request parameters.
-    
+
     Args:
         request: Quick embedding request to validate
-        
+
     Returns:
         Validated request
-        
+
     Raises:
         HTTPException: If validation fails
     """
@@ -206,7 +199,7 @@ def validate_quick_embed_request(request: QuickEmbedRequest) -> QuickEmbedReques
         use_segmentation=request.use_segmentation
     )
     validate_embed_request(base_request)
-    
+
     # Additional validation for model name if provided
     if request.model_name:
         from src.config import SMALL_MODELS
@@ -216,29 +209,29 @@ def validate_quick_embed_request(request: QuickEmbedRequest) -> QuickEmbedReques
                 detail=f"Invalid model name '{request.model_name}'. "
                        f"Available models: {list(SMALL_MODELS.keys())}"
             )
-    
+
     return request
 
 
 def validate_similarity_request(request: SimilarityRequest) -> SimilarityRequest:
     """
     Validate similarity computation request.
-    
+
     Args:
         request: Similarity request to validate
-        
+
     Returns:
         Validated request
-        
+
     Raises:
         HTTPException: If validation fails
     """
     if len(request.texts1) == 0 or len(request.texts2) == 0:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Both text lists must contain at least one text"
         )
-    
+
     # Check batch size limits
     max_batch = 512  # Configurable limit
     if len(request.texts1) > max_batch or len(request.texts2) > max_batch:
@@ -246,41 +239,41 @@ def validate_similarity_request(request: SimilarityRequest) -> SimilarityRequest
             status_code=400,
             detail=f"Maximum batch size is {max_batch} texts per list"
         )
-    
+
     return request
 
 
 def validate_search_request(request: SearchRequest) -> SearchRequest:
     """
     Validate similarity search request.
-    
+
     Args:
         request: Search request to validate
-        
+
     Returns:
         Validated request
-        
+
     Raises:
         HTTPException: If validation fails
     """
     if len(request.query.strip()) == 0:
         raise HTTPException(status_code=400, detail="Query text cannot be empty")
-    
+
     if len(request.candidates) == 0:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="At least one candidate text must be provided"
         )
-    
+
     if request.top_k <= 0:
         raise HTTPException(status_code=400, detail="top_k must be greater than 0")
-    
+
     if request.top_k > len(request.candidates):
         raise HTTPException(
             status_code=400,
             detail="top_k cannot be greater than the number of candidates"
         )
-    
+
     # Check candidate limits
     max_candidates = 1000  # Configurable limit
     if len(request.candidates) > max_candidates:
@@ -288,32 +281,32 @@ def validate_search_request(request: SearchRequest) -> SearchRequest:
             status_code=400,
             detail=f"Maximum number of candidates is {max_candidates}"
         )
-    
+
     return request
 
 
 def validate_model_load_request(request: ModelLoadRequest) -> ModelLoadRequest:
     """
     Validate model loading request.
-    
+
     Args:
         request: Model load request to validate
-        
+
     Returns:
         Validated request
-        
+
     Raises:
         HTTPException: If validation fails
     """
     from src.config import SMALL_MODELS
-    
+
     if request.model_name not in SMALL_MODELS:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid model name '{request.model_name}'. "
                    f"Available models: {list(SMALL_MODELS.keys())}"
         )
-    
+
     # Validate device
     valid_devices = ["auto", "cpu", "cuda", "mps"]
     if request.device not in valid_devices:
@@ -321,24 +314,24 @@ def validate_model_load_request(request: ModelLoadRequest) -> ModelLoadRequest:
             status_code=400,
             detail=f"Invalid device '{request.device}'. Valid options: {valid_devices}"
         )
-    
+
     # Validate numeric parameters
     if request.max_length <= 0:
         raise HTTPException(status_code=400, detail="max_length must be greater than 0")
-    
+
     if request.batch_size <= 0:
         raise HTTPException(status_code=400, detail="batch_size must be greater than 0")
-    
+
     return request
 
 
 async def get_request_context(request: Request) -> Dict[str, Any]:
     """
     Extract useful context from the request for logging and monitoring.
-    
+
     Args:
         request: FastAPI request object
-        
+
     Returns:
         Dictionary with request context information
     """
@@ -358,19 +351,19 @@ async def check_concurrency_limit(
 ) -> asyncio.Semaphore:
     """
     Check and acquire semaphore for operation with timeout.
-    
+
     Args:
         operation_type: Type of operation requesting access
         timeout: Maximum time to wait for semaphore acquisition
-        
+
     Returns:
         Acquired semaphore (to be used in async context manager)
-        
+
     Raises:
         HTTPException: If semaphore cannot be acquired within timeout
     """
     semaphore = get_semaphore(operation_type)
-    
+
     try:
         # Try to acquire with timeout
         await asyncio.wait_for(semaphore.acquire(), timeout=timeout)
@@ -378,7 +371,7 @@ async def check_concurrency_limit(
     except asyncio.TimeoutError:
         current_count = semaphore._value  # Available permits
         max_count = SEMAPHORE_LIMITS.get(operation_type, "unknown")
-        
+
         raise ConcurrencyLimitException(
             f"Concurrency limit reached for {operation_type}. "
             f"Available: {current_count}/{max_count}. "
@@ -390,7 +383,7 @@ async def check_concurrency_limit(
 def get_app_config() -> Dict[str, Any]:
     """
     Cached access to application configuration.
-    
+
     Returns:
         Application configuration dictionary
     """

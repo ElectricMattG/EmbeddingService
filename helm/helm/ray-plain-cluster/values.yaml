@@ -17,7 +17,7 @@ imagePullSecrets: []
   # - name: an-existing-secret
 
 head:
-  
+
   rayVersion: 2.9.2
   # enableInTreeAutoscaling: true
   # autoscalerOptions is an OPTIONAL field specifying configuration overrides for the Ray autoscaler.
@@ -86,7 +86,7 @@ head:
     - name: log-volume
       emptyDir: {}
     - name: head-workdir
-      hostPath: 
+      hostPath:
         path: /home/ray/examples
         type: Directory
   volumeMounts:
@@ -152,7 +152,7 @@ worker:
     - name: log-volume
       emptyDir: {}
     - name: worker-workdir
-      hostPath: 
+      hostPath:
         path: /home/ray/examples
         type: Directory
   volumeMounts:

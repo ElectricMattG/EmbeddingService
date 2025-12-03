@@ -4,8 +4,8 @@ import concurrent.futures as cf
 import json
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 
 def post_json(url: str, payload: dict, timeout: float = 30.0):

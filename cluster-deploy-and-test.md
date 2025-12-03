@@ -24,7 +24,7 @@ kubectl get pods -l ray.io/cluster=ray-cluster-simple
 
 # Expected output:
 # ray-cluster-simple-head-xxxxx                1/1     Running
-# ray-cluster-simple-worker-gpu-worker-xxxxx   1/1     Running  
+# ray-cluster-simple-worker-gpu-worker-xxxxx   1/1     Running
 # ray-cluster-simple-worker-gpu-worker-xxxxx   1/1     Running
 
 # Check services
@@ -36,7 +36,7 @@ kubectl get services -l ray.io/cluster=ray-cluster-simple
 # Ray Dashboard (8265)
 kubectl port-forward service/ray-cluster-simple-head-svc 8265:8265 &
 
-# Ray Client (10001) 
+# Ray Client (10001)
 kubectl port-forward service/ray-cluster-simple-head-svc 10001:10001 &
 
 # Ray Serve (8000) - when application deployed
@@ -123,7 +123,7 @@ curl -s http://localhost:8265/api/cluster_status | jq .
 
 ## Expected Results
 - **Ray Cluster**: 1 head + 2 GPU workers running
-- **Dashboard**: Accessible at http://localhost:8265  
+- **Dashboard**: Accessible at http://localhost:8265
 - **Ray Serve**: Embeddings API at http://localhost:8000
 - **Performance**: 512 batch size processing with dual GPU support
 - **Resource Usage**: ~0.5 GPU per replica, optimized memory allocation

@@ -38,10 +38,10 @@ serveConfigV2: |
 
 rayClusterConfig:
   rayVersion: 2.9.3
-  head: 
+  head:
     sidecarContainers:
     - name: jupyterlab
-      image: 
+      image:
       ports:
         - containerPort: 8888
       env:

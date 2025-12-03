@@ -9,7 +9,7 @@ This guide explains how to use the successfully deployed RayService embedding se
 RayService represents a significant evolution in how we deploy and manage distributed ML services. Unlike traditional deployments where you manually manage individual pods and services, RayService provides a unified abstraction that combines:
 
 - **Cluster Management**: Automatically provisions and manages Ray cluster nodes
-- **Application Deployment**: Handles distributed application lifecycle through declarative configuration  
+- **Application Deployment**: Handles distributed application lifecycle through declarative configuration
 - **Load Balancing**: Built-in service mesh for intelligent request routing
 - **Scaling**: Dynamic replica management based on load and resource availability
 - **Health Management**: Automatic failure detection and recovery
@@ -78,7 +78,7 @@ kubectl get pods -l ray.io/cluster=ray-cluster-simple-w8mpz -o wide
 # Expected output:
 # NAME                                               READY   STATUS    RESTARTS   AGE   IP             NODE
 # ray-cluster-simple-w8mpz-head-frr7n                1/1     Running   0          15m   10.244.0.112   server
-# ray-cluster-simple-w8mpz-worker-gpu-worker-nrmzs   1/1     Running   0          15m   10.244.0.113   server  
+# ray-cluster-simple-w8mpz-worker-gpu-worker-nrmzs   1/1     Running   0          15m   10.244.0.113   server
 # ray-cluster-simple-w8mpz-worker-gpu-worker-vjncm   1/1     Running   0          15m   10.244.0.114   server
 ```
 
@@ -89,7 +89,7 @@ kubectl get services | grep ray-cluster-simple
 
 # Expected output:
 # ray-cluster-simple-head-svc         ClusterIP   None             <none>        10001/TCP,8265/TCP,6379/TCP,8080/TCP,8000/TCP
-# ray-cluster-simple-serve-svc        ClusterIP   10.101.124.133   <none>        8000/TCP                                        
+# ray-cluster-simple-serve-svc        ClusterIP   10.101.124.133   <none>        8000/TCP
 # ray-cluster-simple-w8mpz-head-svc   ClusterIP   None             <none>        10001/TCP,8265/TCP,6379/TCP,8080/TCP,8000/TCP
 ```
 
@@ -170,7 +170,7 @@ This dual approach allows you to implement both rapid health monitoring (for imm
 # List available models
 curl -s http://ray-cluster-simple-serve-svc:8000/models/available | jq .
 
-# Get current model information  
+# Get current model information
 curl -s http://ray-cluster-simple-serve-svc:8000/models/info | jq .
 # Shows: device: "cuda", embedding_dim: 384, gpu_memory: 21GB+
 ```
@@ -204,7 +204,7 @@ curl -s -X POST http://ray-cluster-simple-serve-svc:8000/embeddings \
 
 **Performance Characteristics**: Based on our testing:
 - Single embedding: ~9ms processing time
-- Batch of 10: ~12ms total (1.2ms per embedding)  
+- Batch of 10: ~12ms total (1.2ms per embedding)
 - Batch of 100: ~45ms total (0.45ms per embedding)
 - Batch of 512: ~180ms total (0.35ms per embedding)
 
@@ -417,7 +417,7 @@ The service can automatically adapt to changing load patterns:
 
 RayService supports sophisticated deployment strategies:
 - **Rolling Updates**: New application versions deployed without service interruption
-- **Blue-Green Deployments**: Switch traffic between old and new versions instantly  
+- **Blue-Green Deployments**: Switch traffic between old and new versions instantly
 - **Canary Releases**: Gradually migrate traffic to new versions for safe deployments
 - **Rollback Capability**: Instantly revert to previous versions if issues arise
 
@@ -440,7 +440,7 @@ The module serialization problem we solved is worth understanding in detail:
 3. **Circular Dependencies**: Complex import relationships caused serialization failures
 4. **Environment Differences**: Subtle differences in Python environments across nodes
 
-**RayService Solution**: 
+**RayService Solution**:
 - ✅ **Consistent Environments**: All pods use identical container images
 - ✅ **Declarative Imports**: Ray handles module resolution through `import_path` specification
 - ✅ **Dependency Management**: Runtime environment ensures consistent package availability
@@ -545,7 +545,7 @@ class EmbeddingServiceClient:
         self.base_url = base_url
         self.timeout = timeout
         self.session = requests.Session()
-        
+
     def health_check(self) -> bool:
         """Check service health before making requests."""
         try:
@@ -553,16 +553,16 @@ class EmbeddingServiceClient:
             return response.status_code == 200
         except requests.RequestException:
             return False
-    
-    def generate_embeddings(self, texts: List[str], batch_size: int = 512, 
+
+    def generate_embeddings(self, texts: List[str], batch_size: int = 512,
                           max_retries: int = 3) -> Dict[str, Any]:
         """Generate embeddings with automatic retry and error handling."""
-        
+
         if not self.health_check():
             raise ConnectionError("Service is not healthy")
-            
+
         payload = {"texts": texts, "batch_size": batch_size}
-        
+
         for attempt in range(max_retries):
             try:
                 response = self.session.post(
@@ -572,7 +572,7 @@ class EmbeddingServiceClient:
                 )
                 response.raise_for_status()
                 return response.json()
-                
+
             except requests.RequestException as e:
                 if attempt == max_retries - 1:
                     raise
@@ -594,20 +594,20 @@ from typing import List, Dict, Any
 class AsyncEmbeddingClient:
     def __init__(self, base_url: str):
         self.base_url = base_url
-        
+
     async def generate_embeddings_batch(self, text_batches: List[List[str]]) -> List[Dict[str, Any]]:
         """Process multiple batches concurrently for maximum throughput."""
-        
+
         async with aiohttp.ClientSession() as session:
             tasks = []
             for batch in text_batches:
                 task = self._process_single_batch(session, batch)
                 tasks.append(task)
-                
+
             results = await asyncio.gather(*tasks, return_exceptions=True)
             return [r for r in results if not isinstance(r, Exception)]
-    
-    async def _process_single_batch(self, session: aiohttp.ClientSession, 
+
+    async def _process_single_batch(self, session: aiohttp.ClientSession,
                                    texts: List[str]) -> Dict[str, Any]:
         payload = {"texts": texts, "batch_size": 512}
         async with session.post(f"{self.base_url}/embeddings", json=payload) as response:
@@ -616,18 +616,18 @@ class AsyncEmbeddingClient:
 # Usage for high-throughput scenarios
 async def process_large_dataset(texts: List[str], batch_size: int = 100):
     client = AsyncEmbeddingClient("http://ray-cluster-simple-serve-svc:8000")
-    
+
     # Split into batches
     batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
-    
+
     # Process all batches concurrently
     results = await client.generate_embeddings_batch(batches)
-    
+
     # Flatten results
     all_embeddings = []
     for result in results:
         all_embeddings.extend(result["embeddings"])
-    
+
     return all_embeddings
 ```
 
@@ -656,14 +656,14 @@ The RayService deployment represents a significant achievement in distributed ML
 ### Performance Characteristics
 Based on our testing and optimization work:
 - **Latency**: Single embeddings in ~9ms, batch processing at 0.35ms per item
-- **Throughput**: Supports concurrent requests across multiple GPU-enabled replicas  
+- **Throughput**: Supports concurrent requests across multiple GPU-enabled replicas
 - **Scalability**: Horizontal scaling from 2 to 16+ replicas based on demand
 - **Efficiency**: <1% GPU memory utilization at idle, scales to full utilization under load
 
 ### Strategic Value
 This deployment demonstrates how modern ML infrastructure should work:
 - **Infrastructure as Code**: Complete system defined declaratively in version-controlled YAML
-- **Cloud-Native Architecture**: Leverages Kubernetes primitives for reliability and scalability  
+- **Cloud-Native Architecture**: Leverages Kubernetes primitives for reliability and scalability
 - **ML-Optimized**: Purpose-built for GPU workloads with batch processing optimization
 - **Enterprise-Ready**: Comprehensive operational capabilities for production deployment
 
