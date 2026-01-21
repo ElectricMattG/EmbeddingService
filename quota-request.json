@@ -1,9 +1,0 @@
-{
-  "properties": {
-    "limit": 4,
-    "unit": "Count",
-    "name": {
-      "value": "NCASv3_T4"
-    }
-  }
-}
