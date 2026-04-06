@@ -29,7 +29,7 @@ defaults = {
     },
     "embedding": {
         # Model configuration
-        "default_model": "all-mini",  # Default model - MiniLM for efficiency (maps to sentence-transformers/all-MiniLM-L6-v2)
+        "default_model": "all-mini",  # Default model - sentence-transformers/all-MiniLM-L6-v2 (384-dim)
         "cache_dir": None,            # Model cache directory (None = use transformers default)
 
         # Performance settings
@@ -49,7 +49,7 @@ defaults = {
     },
     "service": {
         # Request limits (two-level keys only!)
-        "max_text_length": 8192,      # Maximum text length in characters
+        "max_text_length": 15000,     # Maximum text length in characters
         "max_batch_size": 1024,       # Maximum batch size for embedding requests (raised from 100)
         "max_candidates": 1000,       # Maximum similarity comparison candidates
         "max_request_size": 10485760, # Maximum request size in bytes (10MB)

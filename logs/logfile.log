@@ -1,0 +1,2 @@
+--logs--| 2026-03-01 19:25:49,751 | INFO - EmbeddingEngine - Initializing EmbeddingEngine with laion/CLIP-ViT-H-14-laion2B-s32B-b79K on cuda
+| 2026-03-01 19:28:20,020 | INFO - EmbeddingEngine - Model loaded. Embedding dimension: 1024

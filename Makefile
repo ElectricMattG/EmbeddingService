@@ -105,6 +105,8 @@ docker-push:
 	@echo "$(YELLOW)$(BOLD)Pushing Docker image: $(FULL_IMAGE_TAG)$(RESET)"
 	docker push $(FULL_IMAGE_TAG)
 	docker push $(REGISTRY)/$(IMAGE_NAME):latest
+	@echo "$(YELLOW)$(BOLD)Cleaning up local images (available in registry)$(RESET)"
+	docker rmi $(FULL_IMAGE_TAG) $(REGISTRY)/$(IMAGE_NAME):latest --force 2>/dev/null || true
 
 .PHONY: build-push
 build-push: docker-build docker-push
@@ -203,6 +205,29 @@ k8s-delete:
 	@echo "$(YELLOW)$(BOLD)Waiting for pods to terminate$(RESET)"
 	@sleep 5
 	@kubectl delete pods -n $(NAMESPACE) -l ray.io/is-ray-node=yes --force --grace-period=0 2>/dev/null || true
+
+.PHONY: k8s-cleanup-all
+k8s-cleanup-all:
+	@echo "$(YELLOW)$(BOLD)Deleting ALL RayServices and Ray pods$(RESET)"
+	kubectl delete rayservice --all -n $(NAMESPACE) --ignore-not-found=true
+	@sleep 5
+	kubectl delete pods --all -n $(NAMESPACE) --force --grace-period=0 2>/dev/null || true
+	@echo "$(YELLOW)$(BOLD)Cleaning up Ray services$(RESET)"
+	kubectl delete svc -n $(NAMESPACE) -l ray.io/cluster --ignore-not-found=true 2>/dev/null || true
+	kubectl delete svc ray-dashboard-external -n $(NAMESPACE) --ignore-not-found=true 2>/dev/null || true
+	@echo "$(GREEN)$(BOLD)✓ Cluster cleaned$(RESET)"
+
+.PHONY: docker-cleanup
+docker-cleanup:
+	@echo "$(YELLOW)$(BOLD)Cleaning Docker resources$(RESET)"
+	docker builder prune -af
+	docker system prune -f
+	@echo "$(GREEN)$(BOLD)✓ Docker cleanup complete$(RESET)"
+	@df -h / | grep -E "Filesystem|/$"
+
+.PHONY: full-cleanup
+full-cleanup: k8s-cleanup-all docker-cleanup
+	@echo "$(GREEN)$(BOLD)✓ Full cleanup complete$(RESET)"
 
 #######################
 # Quick Start         #

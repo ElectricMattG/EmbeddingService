@@ -162,7 +162,7 @@ def validate_embed_request(request: EmbedRequest) -> EmbedRequest:
         raise HTTPException(status_code=400, detail="At least one text must be provided")
 
     # Check individual text lengths
-    max_length = 8192  # Configurable limit
+    max_length = 15000  # Configurable limit
     for i, text in enumerate(request.texts):
         if len(text.strip()) == 0:
             raise HTTPException(

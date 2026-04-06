@@ -18,13 +18,11 @@ from src.service.main import app
         "num_cpus": 1,
         "num_gpus": 0.2,  # Allow 2-5 replicas per GPU depending on model size
     },
-    # Increased per-replica concurrency to coordinate with optimized semaphore limits.
-    # Supports higher concurrency for 2-worker deployment with increased app-level limits.
-    max_ongoing_requests=200,  # Increased from 100 to coordinate with doubled semaphores
+    max_ongoing_requests=100,
     autoscaling_config={
-        "min_replicas": 2,
-        "max_replicas": 16,
-        "target_num_ongoing_requests_per_replica": 8,  # Increased from 4 for higher baseline
+        "min_replicas": 1,
+        "max_replicas": 3,
+        "target_num_ongoing_requests_per_replica": 15,
     },
 )
 @serve.ingress(app)

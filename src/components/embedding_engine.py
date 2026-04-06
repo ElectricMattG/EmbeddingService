@@ -17,7 +17,8 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 from torch.nn.functional import normalize
-from transformers import AutoModel, AutoTokenizer
+from transformers import (AutoModel, AutoTokenizer,
+                          CLIPTextModelWithProjection, CLIPTokenizer)
 
 from src.config_handler import Base
 
@@ -40,7 +41,8 @@ class EmbeddingEngine(Base):
         'bert-mini': 'google/bert_uncased_L-4_H-256_A-4',
         'bert-small': 'google/bert_uncased_L-4_H-512_A-8',
         'all-mini': 'sentence-transformers/all-MiniLM-L6-v2',
-        'legal-bert': 'nlpaueb/legal-bert-base-uncased'
+        'legal-bert': 'nlpaueb/legal-bert-base-uncased',
+        'laion-clip-text': 'laion/CLIP-ViT-H-14-laion2B-s32B-b79K',  # Text encoder paired with OpenCLIP LAION ViT-H-14
     }
 
     def __init__(
@@ -87,6 +89,12 @@ class EmbeddingEngine(Base):
         else:
             self.model_path = self.model_name
 
+        # Detect CLIP model — use projected text embeddings instead of mean pooling
+        self._is_clip = 'clip' in self.model_path.lower()
+        # CLIP tokenizer enforces a 77-token context limit; override default unless user set it explicitly
+        if self._is_clip and max_length is None:
+            self.max_length = 77
+
         # Device setup
         config_device = self._app_config.get("embedding.device")
         device = device or config_device
@@ -118,19 +126,26 @@ class EmbeddingEngine(Base):
     def _load_model(self):
         """Load tokenizer and model with error handling."""
         try:
-            # Load tokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_path,
-                do_lower_case=True,
-                clean_up_tokenization_spaces=True
-            )
-
-            # Load model
-            self.model = AutoModel.from_pretrained(
-                self.model_path,
-                output_hidden_states=False,
-                return_dict=True
-            )
+            if self._is_clip:
+                # CLIP text encoder — use dedicated classes so we get the properly
+                # projected embeddings that are comparable to the paired vision encoder.
+                self.tokenizer = CLIPTokenizer.from_pretrained(self.model_path)
+                self.model = CLIPTextModelWithProjection.from_pretrained(
+                    self.model_path,
+                    return_dict=True
+                )
+            else:
+                # Standard transformer model
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_path,
+                    do_lower_case=True,
+                    clean_up_tokenization_spaces=True
+                )
+                self.model = AutoModel.from_pretrained(
+                    self.model_path,
+                    output_hidden_states=False,
+                    return_dict=True
+                )
 
             # Move to device and set to eval mode
             self.model.to(self.device)
@@ -142,10 +157,12 @@ class EmbeddingEngine(Base):
 
         except Exception as e:
             self._logger.error(f"Failed to load model {self.model_path}: {e}")
-            # Fallback to configured fallback model
+            # Fallback to configured fallback model (always a plain transformer)
             fallback_model = self._app_config.get("embedding.fallback_model") or "distilbert-base-uncased"
             self._logger.info(f"Falling back to {fallback_model}")
             self.model_path = fallback_model
+            self._is_clip = False  # fallback is never a CLIP model
+            self.max_length = self._app_config.get("embedding.max_length") or 512
 
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
             self.model = AutoModel.from_pretrained(self.model_path)
@@ -267,8 +284,11 @@ class EmbeddingEngine(Base):
         with torch.no_grad():
             model_output = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
-        # Apply mean pooling
-        embeddings = self._mean_pooling(model_output, attention_mask)
+        # Extract embeddings — CLIP gives projected text_embeds; others use mean pooling
+        if self._is_clip:
+            embeddings = model_output.text_embeds  # shape (batch, projection_dim)
+        else:
+            embeddings = self._mean_pooling(model_output, attention_mask)
 
         # Normalize if requested
         if self.normalize_embeddings:
